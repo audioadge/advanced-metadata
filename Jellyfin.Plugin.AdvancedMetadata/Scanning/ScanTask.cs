@@ -278,9 +278,9 @@ public class ScanTask : IScheduledTask
                         album = SplitValues(raw, "ALBUM", delims).FirstOrDefault();
                     }
 
-                    if (!albumId.HasValue && !string.IsNullOrWhiteSpace(album))
+                   if (!albumId.HasValue && !string.IsNullOrWhiteSpace(album))
                     {
-                        albumId = _library.GetAlbum(album)?.Id;
+                        albumId = FindByName(album, BaseItemKind.MusicAlbum)?.Id;
                     }
 
                     long itemId;
@@ -343,7 +343,7 @@ public class ScanTask : IScheduledTask
                                     {
                                         var trimmed = nm.Trim();
                                         if (trimmed.Length == 0) { continue; }
-                                        names.Add((_library.GetArtist(trimmed)?.Id ?? Guid.Empty, trimmed));
+                                        names.Add((FindByName(trimmed, BaseItemKind.MusicArtist)?.Id ?? Guid.Empty, trimmed));
                                     }
                                 }
 
@@ -415,6 +415,26 @@ public class ScanTask : IScheduledTask
             plugin.UpdateConfiguration(cfg);
             _logger.LogError(ex, "Advanced Metadata scan failed");
             throw;
+        }
+    }
+
+   private BaseItem? FindByName(string name, BaseItemKind kind)
+    {
+        if (string.IsNullOrWhiteSpace(name)) { return null; }
+
+        try
+        {
+            return _library.GetItemList(new InternalItemsQuery
+            {
+                IncludeItemTypes = new[] { kind },
+                Name = name,
+                Recursive = true,
+                Limit = 1
+            }).FirstOrDefault();
+        }
+        catch
+        {
+            return null;
         }
     }
 
