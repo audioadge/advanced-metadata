@@ -9,13 +9,13 @@
     "imageUrl": "https://raw.githubusercontent.com/audioadge/advanced-metadata/main/Jellyfin.Plugin.AdvancedMetadata/thumb.png?v=8",
     "versions": [
       {
-        "version": "0.5.1.0",
-        "changelog": "Release 0.5.1.0",
+        "version": "0.5.2.0",
+        "changelog": "Release 0.5.2.0",
         "targetAbi": "12.0.0.0",
-        "sourceUrl": "https://github.com/audioadge/advanced-metadata/releases/download/v0.5.1.0/advanced-metadata.zip",
-        "checksum": "B817AB8D46234AF7FF65B19A77A96B0D",
+        "sourceUrl": "https://github.com/audioadge/advanced-metadata/releases/download/v0.5.2.0/advanced-metadata.zip",
+        "checksum": "A76CEA082D48E411BBFEB43594D53850",
         "imageUrl": "https://raw.githubusercontent.com/audioadge/advanced-metadata/main/Jellyfin.Plugin.AdvancedMetadata/thumb.png?v=8",
-        "timestamp": "2026-11-01T12:20:52Z"
+        "timestamp": "2026-11-02T06:10:17Z"
       }
     ]
   }
