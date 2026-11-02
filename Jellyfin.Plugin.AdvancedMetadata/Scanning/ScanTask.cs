@@ -136,6 +136,11 @@ public class ScanTask : IScheduledTask
                 foreach (var m in mappings) { _store.ClearField(m.SourceTag); }
             }
 
+            foreach (var m in mappings)
+            {
+                _logger.LogInformation("Advanced Metadata: mapping {Tag} applies to {Hierarchy}", m.SourceTag, m.Hierarchy);
+            }
+
             Stage("Reading library item list");
             List<BaseItem> items;
 
