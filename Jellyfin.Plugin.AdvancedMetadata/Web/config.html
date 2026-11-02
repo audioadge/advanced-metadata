@@ -112,6 +112,8 @@
   .am-letter.on { background: #2ecc71; border-color: #2ecc71; color: #10240f; font-weight: 600; }
   .am-nest { border-left: 3px solid #30363d; }
   .am-added { font-size: .78em; color: #8b949e; margin-left: 8px; white-space: nowrap; }
+  .am-addedcell { font-size: .8em; color: #8b949e; white-space: nowrap; }
+  .am-actionscell { white-space: nowrap; text-align: right; }
   .am-itemrow { display: flex; gap: 14px; padding: 4px 0; font-size: .92em; }
   .am-itemrow .k { flex: 0 0 180px; color: #8b949e; font-family: ui-monospace, Menlo, Consolas, monospace; }
   .am-itemrow .v { flex: 1; word-break: break-word; }
@@ -408,12 +410,13 @@
     <table class="am-table" id="dataTable" style="display:none">
       <thead>
         <tr>
-          <th style="width:16%" data-sort="Artist">Artist</th>
-          <th style="width:20%" data-sort="Item">Title</th>
-          <th style="width:10%" data-sort="Kind">Type</th>
-          <th style="width:14%" data-sort="Field">Mapping</th>
+          <th style="width:14%" data-sort="Artist">Artist</th>
+          <th style="width:18%" data-sort="Item">Title</th>
+          <th style="width:9%" data-sort="Kind">Type</th>
+          <th style="width:13%" data-sort="Field">Mapping</th>
           <th style="width:20%" data-sort="Value">Value</th>
-          <th style="width:12%" data-sort="Added">Added</th>
+          <th style="width:9%" data-sort="Added">Added</th>
+          <th style="width:9%"></th>
           <th class="pathCol" style="width:8%" data-sort="Detail">Path</th>
         </tr>
       </thead>
@@ -1268,41 +1271,50 @@ function clearDataResults() {
       var b = document.createElement('td'); b.textContent = r.Item; b.title = r.Detail || r.Item; tr.appendChild(b);
       var c = document.createElement('td'); c.textContent = KIND_LABEL[r.Kind] || r.Kind; tr.appendChild(c);
       var d = document.createElement('td'); d.className = 'am-mono'; d.textContent = r.Field; tr.appendChild(d);
-      var e = document.createElement('td'); e.textContent = r.Value; e.title = r.Value;
+     var e = document.createElement('td'); e.textContent = r.Value; e.title = r.Value;
       if (r.IsOverride) {
         var mark = document.createElement('span');
-        mark.textContent = r.IsDeleted ? ' ●' : ' ●';
+        mark.textContent = ' ●';
         mark.title = r.IsDeleted ? 'Deleted — the value is hidden from the index' : 'Edited — overrides the file';
         mark.style.color = r.IsDeleted ? '#e5534b' : '#e2a03f';
         e.appendChild(mark);
-        e.appendChild(document.createTextNode(' '));
+      }
+      tr.appendChild(e);
+
+      var addedCell = document.createElement('td');
+      addedCell.className = 'am-addedcell';
+      addedCell.textContent = fmtDate(r.Added);
+      tr.appendChild(addedCell);
+
+      var act = document.createElement('td');
+      act.className = 'am-actionscell';
+
+      if (r.IsOverride) {
         var rv = document.createElement('button');
         rv.className = 'am-act';
         rv.textContent = 'Revert';
         rv.title = 'Remove this edit and restore the value from the file on the next scan';
         rv.addEventListener('click', function () { revertValue(r); });
-        e.appendChild(rv);
+        act.appendChild(rv);
+        act.appendChild(document.createTextNode(' '));
       }
-      e.appendChild(document.createTextNode(' '));
+
       var eb = document.createElement('button');
       eb.className = 'am-act';
       eb.textContent = 'Edit';
       eb.addEventListener('click', function () { editValue(r); });
-      e.appendChild(eb);
-      e.appendChild(document.createTextNode(' '));
+      act.appendChild(eb);
+
       if (!r.IsDeleted) {
-      var db = document.createElement('button');
-      db.className = 'am-act am-act-danger';
-      db.textContent = 'Delete';
-      db.title = 'Remove this value from the index (file unchanged)';
-      db.addEventListener('click', function () { deleteValue(r); });
-      e.appendChild(db);
+        act.appendChild(document.createTextNode(' '));
+        var db = document.createElement('button');
+        db.className = 'am-act am-act-danger';
+        db.textContent = 'Delete';
+        db.title = 'Remove this value from the index (file unchanged)';
+        db.addEventListener('click', function () { deleteValue(r); });
+        act.appendChild(db);
       }
-      tr.appendChild(e);
-      var addedCell = document.createElement('td');
-      addedCell.className = 'am-added';
-      addedCell.textContent = fmtDate(r.Added);
-      tr.appendChild(addedCell);
+      tr.appendChild(act);
       var f = document.createElement('td'); f.className = 'pathCol'; f.textContent = r.Detail || ''; f.title = r.Detail || ''; tr.appendChild(f);
       body.appendChild(tr);
     });
