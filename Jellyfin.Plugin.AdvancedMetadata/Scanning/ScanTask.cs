@@ -190,6 +190,7 @@ public class ScanTask : IScheduledTask
             var skipped = 0;
             var values = 0;
             var errors = 0;
+            var rolled = 0;
             var startedAt = DateTime.UtcNow;
             var cfgGate = new object();
 
@@ -272,9 +273,14 @@ public class ScanTask : IScheduledTask
                         albumArtist = SplitValues(raw, "ALBUMARTIST", delims).FirstOrDefault() ?? artist;
                     }
 
-                    if (string.IsNullOrWhiteSpace(album))
+                   if (string.IsNullOrWhiteSpace(album))
                     {
                         album = SplitValues(raw, "ALBUM", delims).FirstOrDefault();
+                    }
+
+                    if (!albumId.HasValue && !string.IsNullOrWhiteSpace(album))
+                    {
+                        albumId = _library.GetAlbum(album)?.Id;
                     }
 
                     long itemId;
@@ -321,16 +327,32 @@ public class ScanTask : IScheduledTask
                                 var albumName = album ?? item.Name ?? "Unknown album";
                                 var albumBy = albumArtist ?? artist ?? albumName;
                                 var tid = _store.UpsertItem(aid, "MusicAlbum", albumName, albumBy, albumName, null, 0, 0);
+                                        Interlocked.Increment(ref rolled);
                                 _store.AddValues(tid, m.SourceTag, vals);
                                 _store.ApplyOverrides(aid, m.SourceTag);
                             }
 
                             if (vals.Count > 0 && m.Hierarchy.Contains("artists", StringComparison.OrdinalIgnoreCase))
                             {
-                                foreach (var a in GetArtists(item))
+                                var names = new List<(Guid Id, string? Name)>(GetArtists(item));
+
+                                if (names.Count == 0)
                                 {
-                                    var aid = a.Id.ToString("N");
+                                    var joined = GetStringList(item, "Artists") ?? artist ?? string.Empty;
+                                    foreach (var nm in joined.Split('/', StringSplitOptions.RemoveEmptyEntries))
+                                    {
+                                        var trimmed = nm.Trim();
+                                        if (trimmed.Length == 0) { continue; }
+                                        names.Add((_library.GetArtist(trimmed)?.Id ?? Guid.Empty, trimmed));
+                                    }
+                                }
+
+                                foreach (var a in names)
+                                {
                                     var an = string.IsNullOrWhiteSpace(a.Name) ? (artist ?? "Unknown artist") : a.Name;
+                                    var aid = a.Id != Guid.Empty
+                                        ? a.Id.ToString("N")
+                                        : "artist-" + an.ToLowerInvariant().Replace(' ', '-');
                                     var tid = _store.UpsertItem(aid, "MusicArtist", an, an, null, null, 0, 0);
                                     _store.AddValues(tid, m.SourceTag, vals);
                                     _store.ApplyOverrides(aid, m.SourceTag);
@@ -372,7 +394,7 @@ public class ScanTask : IScheduledTask
             cfg.LastScanFinishedUtc = DateTime.UtcNow;
             cfg.LastScanStatus = "Complete";
             if (full && !scoped) { cfg.LastFullScanUtc = DateTime.UtcNow; }
-            cfg.LastScanSummary = $"{done} read, {skipped} unchanged, {values} indexed, {errors} errors.";
+            cfg.LastScanSummary = $"{done} read, {skipped} unchanged, {values} indexed, {rolled} rolled up, {errors} errors.";
             plugin.UpdateConfiguration(cfg);
 
             _logger.LogInformation("Advanced Metadata: scan complete. {Summary}", cfg.LastScanSummary);
