@@ -1475,8 +1475,10 @@ function valueRow(v, showPath) {
           card.appendChild(pr);
         }
 
-        var own = list2.filter(function (r) { return r.Kind === LEVEL_KIND[key]; });
-        own.forEach(function (r) { card.appendChild(valueRow(r, showPaths)); });
+        if (level < path.length - 1) {
+          var own = list2.filter(function (r) { return r.Kind === LEVEL_KIND[key]; });
+          own.forEach(function (r) { card.appendChild(valueRow(r, showPaths)); });
+        }
 
         parent.appendChild(card);
         render(list2, level + 1, card);
