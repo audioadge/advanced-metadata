@@ -102,7 +102,9 @@
   .am-itemhead { display: flex; justify-content: space-between; gap: 12px; align-items: baseline;
                  border-bottom: 1px solid #21262d; padding-bottom: 8px; margin-bottom: 8px; }
   .am-itemhead strong { font-size: 1em; }
-  .am-itemmeta { font-size: .78em; color: #8b949e; text-transform: uppercase; letter-spacing: .04em; margin-top: 3px; }
+  .am-itemmeta { font-size: .78em; color: #8b949e; margin-top: 3px; display: flex; gap: 10px; align-items: baseline; }
+  .am-kindtag { text-transform: uppercase; letter-spacing: .06em; border: 1px solid #30363d; border-radius: 3px; padding: 1px 5px; font-size: .95em; }
+  .am-artisttag { font-style: italic; }
   .am-sortbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 10px 0 4px; font-size: .9em; }
   .am-sortbar label { display: flex; gap: 6px; align-items: center; color: #8b949e; }
   .am-letters { display: flex; gap: 2px; flex-wrap: wrap; }
@@ -1416,13 +1418,13 @@ function valueRow(v, showPath) {
       }
 
       var key = path[level];
-      var buckets = {};
+      var wantKind = LEVEL_KIND[key];
       var order = [];
 
       list.forEach(function (r) {
+        if (wantKind && r.Kind !== wantKind) { return; }
         var k = r[key] || '—';
-        if (!buckets[k]) { buckets[k] = []; order.push(k); }
-        buckets[k].push(r);
+        if (order.indexOf(k) < 0) { order.push(k); }
       });
 
       order.sort(function (a, b) {
@@ -1434,7 +1436,7 @@ function valueRow(v, showPath) {
       });
 
       order.forEach(function (k) {
-        var list2 = buckets[k];
+        var list2 = list.filter(function (r) { return (r[key] || '—') === k; });
         var sample = list2[0];
         var card = document.createElement('div');
         card.className = 'am-itemgroup am-nest';
@@ -1442,15 +1444,25 @@ function valueRow(v, showPath) {
 
         var head = document.createElement('div');
         head.className = 'am-itemhead';
-       var t = document.createElement('strong');
+        var t = document.createElement('strong');
         t.textContent = k;
         head.appendChild(t);
+
         var meta = document.createElement('div');
         meta.className = 'am-itemmeta';
-        var kindText = key === 'Artist' ? 'Artist' : (key === 'Album' ? 'Album' : 'Song');
-        meta.textContent = sample.Artist && key !== 'Artist'
-          ? kindText + ' · Artist: ' + sample.Artist
-          : kindText;
+
+        var tag = document.createElement('span');
+        tag.className = 'am-kindtag';
+        tag.textContent = key === 'Artist' ? 'Artist' : (key === 'Album' ? 'Album' : 'Song');
+        meta.appendChild(tag);
+
+        if (sample.Artist && path[level - 1] !== 'Artist') {
+          var who = document.createElement('span');
+          who.className = 'am-artisttag';
+          who.textContent = 'Artist: ' + sample.Artist;
+          meta.appendChild(who);
+        }
+
         head.appendChild(meta);
         card.appendChild(head);
 
