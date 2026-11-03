@@ -1115,7 +1115,7 @@ COALESCE(i.seen_utc,'') AS added";
         var rows = new List<BrowseRow>();
         using (var cmd = c.CreateCommand())
         {
-          cmd.CommandText = "SELECT * FROM (" + UnionSql + ") x WHERE " + where +
+          cmd.CommandText = "SELECT DISTINCT * FROM (" + UnionSql + ") x WHERE " + where +
                               " ORDER BY " + SortColumn(sort) + (desc ? " DESC" : " ASC") +
                               ", artist, album, item, field, value LIMIT $lim OFFSET $off;";
             foreach (var (k, val) in args) { cmd.Parameters.AddWithValue(k, val); }
