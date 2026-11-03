@@ -378,6 +378,7 @@
           <option value="Album>Item">Album › Song</option>
           <option value="Artist">Artist</option>
           <option value="Artist>Album">Artist › Album</option>
+          <option value="Artist>Album>Item">Artist › Album › Song</option>
           <option value="Artist>Item">Artist › Song</option>
         </select>
       </label>
@@ -1386,6 +1387,8 @@ function valueRow(v, showPath) {
     return row;
   }
 
+  var LEVEL_KIND = { Artist: 'MusicArtist', Album: 'MusicAlbum', Item: 'Audio' };
+
   function renderGrouped(rows) {
     var wrap = $('dataGrouped');
     wrap.innerHTML = '';
@@ -1405,7 +1408,10 @@ function valueRow(v, showPath) {
 
     function render(list, level, parent) {
       if (level >= path.length) {
-        list.forEach(function (r) { parent.appendChild(valueRow(r, showPaths)); });
+        var want = LEVEL_KIND[path[path.length - 1]];
+        list.forEach(function (r) {
+          if (!want || r.Kind === want) { parent.appendChild(valueRow(r, showPaths)); }
+        });
         return;
       }
 
@@ -1442,9 +1448,9 @@ function valueRow(v, showPath) {
         var meta = document.createElement('div');
         meta.className = 'am-itemmeta';
         var kindText = key === 'Artist' ? 'Artist' : (key === 'Album' ? 'Album' : 'Song');
-        meta.textContent = kindText
-          + (key !== 'Artist' && sample.Artist ? ' · ' + sample.Artist : '')
-          + ' · ' + list2.length + ' value(s)';
+        meta.textContent = sample.Artist && key !== 'Artist'
+          ? kindText + ' · Artist: ' + sample.Artist
+          : kindText;
         head.appendChild(meta);
         card.appendChild(head);
 
@@ -1456,6 +1462,9 @@ function valueRow(v, showPath) {
           pr.appendChild(pk); pr.appendChild(pv);
           card.appendChild(pr);
         }
+
+        var own = list2.filter(function (r) { return r.Kind === LEVEL_KIND[key]; });
+        own.forEach(function (r) { card.appendChild(valueRow(r, showPaths)); });
 
         parent.appendChild(card);
         render(list2, level + 1, card);
