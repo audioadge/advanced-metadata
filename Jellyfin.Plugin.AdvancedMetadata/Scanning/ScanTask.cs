@@ -102,7 +102,19 @@ public class ScanTask : IScheduledTask
         cfg.LastScanSummary = string.Empty;
         plugin.UpdateConfiguration(cfg);
 
-        var mappings = cfg.Mappings.Where(m => !string.IsNullOrWhiteSpace(m.SourceTag)).ToList();
+        var declared = cfg.Mappings.Where(m => !string.IsNullOrWhiteSpace(m.SourceTag)).ToList();
+
+        var mappings = declared
+            .GroupBy(m => m.SourceTag.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.First())
+            .ToList();
+
+        if (mappings.Count != declared.Count)
+        {
+            _logger.LogWarning(
+                "Advanced Metadata: {Dup} duplicate mapping(s) collapsed by source tag",
+                declared.Count - mappings.Count);
+        }
         var knownIds = cfg.KnownMappingIds.ToHashSet();
 
         var backfill = mappings
