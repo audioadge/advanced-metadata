@@ -1411,12 +1411,25 @@ function valueRow(v, showPath) {
       return;
     }
 
-    function render(list, level, parent) {
-      if (level >= path.length) {
+    if (level >= path.length) {
         var want = LEVEL_KIND[path[path.length - 1]];
-        list.forEach(function (r) {
-          if (!want || r.Kind === want) { parent.appendChild(valueRow(r, showPaths)); }
-        });
+        var leaf = list.filter(function (r) { return !want || r.Kind === want; });
+
+        if (want === 'Audio') {
+          leaf.sort(function (a, b) {
+            if ((a.Disc || 0) !== (b.Disc || 0)) { return (a.Disc || 0) - (b.Disc || 0); }
+            if ((a.Track || 0) !== (b.Track || 0)) {
+              var at = a.Track || 0;
+              var bt = b.Track || 0;
+              if (!at) { return 1; }
+              if (!bt) { return -1; }
+              return at - bt;
+            }
+            return String(a.Item || '').localeCompare(String(b.Item || ''));
+          });
+        }
+
+        leaf.forEach(function (r) { parent.appendChild(valueRow(r, showPaths)); });
         return;
       }
 
@@ -1426,7 +1439,7 @@ function valueRow(v, showPath) {
 
      var keyOf = function (r) {
         var base = r[key] || '—';
-        return key === 'Item' ? base + '\u0001' + (r.Album || '') : base;
+        return key === 'Item' ? base + '\u0001' + (r.Parent || r.Album || '') : base;
       };
 
       list.forEach(function (r) {
