@@ -390,6 +390,7 @@
       </label>
       <button id="dataDir" class="am-btn" title="Reverse the order">↑</button>
       <button id="dataReset" class="am-btn">Reset Sort</button>
+      <button id="btnBulkEdit" class="am-btn am-btn-primary" style="display:none">Edit selected (0)</button>
       <span class="am-letters" id="dataLetters"></span>
     </div>
 
@@ -1245,6 +1246,8 @@ function clearDataResults() {
     letterFilter = '';
     groupPath = '';
     sortAsc = true;
+    bulkSelected = [];
+    updateBulkCount();
     if ($('dataGroup')) { $('dataGroup').value = ''; }
     if ($('chkGrouped')) { $('chkGrouped').checked = false; }
     buildLetters();
@@ -1275,6 +1278,27 @@ function clearDataResults() {
 
     rows.forEach(function (r) {
       var tr = document.createElement('tr');
+
+      var pickCell = document.createElement('td');
+      pickCell.style.width = '26px';
+      var pick = document.createElement('input');
+      pick.type = 'checkbox';
+      pick.className = 'am-pick';
+      pick.checked = bulkSelected.some(function (x) { return x.Id === r.Id && x.Field === r.Field && x.Value === r.Value; });
+      pick.addEventListener('change', function () {
+        var sig = r.Id + '\u0001' + r.Field + '\u0001' + r.Value;
+        if (pick.checked) {
+          if (!bulkSelected.some(function (x) { return x.Sig === sig; })) {
+            bulkSelected.push({ Sig: sig, Id: r.Id, Field: r.Field, Value: r.Value });
+          }
+        } else {
+          bulkSelected = bulkSelected.filter(function (x) { return x.Sig !== sig; });
+        }
+        updateBulkCount();
+      });
+      pickCell.appendChild(pick);
+      tr.appendChild(pickCell);
+
       var a = document.createElement('td'); a.textContent = r.Artist || '—'; a.title = r.Artist || ''; tr.appendChild(a);
       var b = document.createElement('td'); b.textContent = r.Item; b.title = r.Detail || r.Item; tr.appendChild(b);
       var c = document.createElement('td'); c.textContent = KIND_LABEL[r.Kind] || r.Kind; tr.appendChild(c);
@@ -1614,6 +1638,15 @@ function redrawData() {
 var letterFilter = '';
   var groupPath = '';
 
+  var bulkSelected = [];
+
+  function updateBulkCount() {
+    var b = $('btnBulkEdit');
+    if (!b) { return; }
+    b.style.display = bulkSelected.length ? '' : 'none';
+    b.textContent = 'Edit selected (' + bulkSelected.length + ')';
+  }
+
   function updateDir() {
     if ($('dataDir')) { $('dataDir').textContent = sortAsc ? '↑' : '↓'; }
   }
@@ -1805,7 +1838,41 @@ function deleteValue(r) {
       loadData(false);
     });
 
-   $('dataReset').addEventListener('click', function () {
+   $('btnBulkEdit').addEventListener('click', function () {
+      if (!bulkSelected.length) { return; }
+
+      var value = window.prompt(
+        'Set ' + bulkSelected.length + ' selected value(s) to:\n\n'
+        + 'Each row\u2019s current value is replaced. The original stays recorded against each row, '
+        + 'so Revert still works per row.', '');
+      if (value === null) { return; }
+
+      var ok = window.confirm('REPLACE the value on all ' + bulkSelected.length
+        + ' selected row(s) with:\n\n' + value + '\n\nContinue?');
+      if (!ok) { return; }
+
+      setStatus('dataStatus', 'info', 'Applying…');
+
+      apiFetch('AdvancedMetadataData/BulkSet', {
+        method: 'POST',
+        headers: headers(true),
+        credentials: 'same-origin',
+        body: JSON.stringify({ Rows: bulkSelected, NewValue: value })
+      })
+        .then(function (r) { return r.text(); })
+        .then(function (txt) {
+          var j = {};
+          try { j = JSON.parse(txt); } catch (e) { j = { Ok: false, Message: 'Unexpected reply.' }; }
+          if (!j.Ok) { setStatus('dataStatus', 'err', 'BULK EDIT FAILED: ' + (j.Message || 'unknown')); return; }
+          bulkSelected = [];
+          updateBulkCount();
+          setStatus('dataStatus', 'ok', j.Applied + ' value(s) replaced.');
+          loadData(false);
+        })
+        .catch(function (e) { setStatus('dataStatus', 'err', 'BULK EDIT FAILED: ' + e.message); });
+    });
+
+    $('dataReset').addEventListener('click', function () {
       letterFilter = '';
       groupPath = '';
       sortKey = 'Artist';
