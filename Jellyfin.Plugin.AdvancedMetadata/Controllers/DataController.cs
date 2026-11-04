@@ -145,7 +145,7 @@ public class DataController : ControllerBase
             Rows = result.Rows.Select(v => new
             {
                 v.Id, v.Kind, v.Item, v.Artist, v.Album, v.Detail, v.Field, v.Value,
-                v.IsOverride, v.IsDeleted, v.OverrideOld, v.Added
+                v.IsOverride, v.IsDeleted, v.OverrideOld, v.Added, v.Parent, v.Disc, v.Track
             })
         });
     }
@@ -167,7 +167,7 @@ public class DataController : ControllerBase
             Rows = result.Rows.Select(v => new
             {
                v.Id, v.Kind, v.Item, v.Artist, v.Album, v.Detail, v.Field, v.Value,
-                v.IsOverride, v.IsDeleted, v.OverrideOld, v.Added
+                v.IsOverride, v.IsDeleted, v.OverrideOld, v.Added, v.Parent, v.Disc, v.Track
             })
         });
     }
