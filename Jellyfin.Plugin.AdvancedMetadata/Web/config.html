@@ -194,6 +194,7 @@
         <option value="songs">Songs only</option>
         <option value="songs_albums">Songs + Albums</option>
         <option value="albums">Albums only</option>
+        <option value="artists">Artists only</option>
         <option value="songs_albums_artists">Songs + Albums + Artists</option>
       </select>
       <div class="am-hint">Pick the level this mapping should populate. "Songs + Albums" is the usual choice.</div>
@@ -249,6 +250,7 @@
         <option value="songs">Songs only</option>
         <option value="songs_albums">Songs + Albums</option>
         <option value="albums">Albums only</option>
+        <option value="artists">Artists only</option>
         <option value="songs_albums_artists">Songs + Albums + Artists</option>
       </select>
       <div class="am-hint">Applies to every tag in the list above.</div>
@@ -650,6 +652,7 @@
     songs: 'Songs only',
     songs_albums: 'Songs + Albums',
     albums: 'Albums only',
+    artists: 'Artists only',
     songs_albums_artists: 'Songs + Albums + Artists'
   };
 
@@ -1059,7 +1062,7 @@ function renderManage() {
         var tdHier = document.createElement('td');
         var hierSel = document.createElement('select');
         hierSel.id = 'editHier';
-        ['songs', 'songs_albums', 'albums', 'songs_albums_artists'].forEach(function (h) {
+        ['songs', 'songs_albums', 'albums', 'artists', 'songs_albums_artists'].forEach(function (h) {
           var o = document.createElement('option');
           o.value = h; o.textContent = HIER[h];
           if (h === m.Hierarchy) { o.selected = true; }
@@ -1421,9 +1424,14 @@ function valueRow(v, showPath) {
       var wantKind = LEVEL_KIND[key];
       var order = [];
 
+     var keyOf = function (r) {
+        var base = r[key] || '—';
+        return key === 'Item' ? base + '\u0001' + (r.Album || '') : base;
+      };
+
       list.forEach(function (r) {
         if (wantKind && r.Kind !== wantKind) { return; }
-        var k = r[key] || '—';
+        var k = keyOf(r);
         if (order.indexOf(k) < 0) { order.push(k); }
       });
 
@@ -1436,8 +1444,8 @@ function valueRow(v, showPath) {
       });
 
       order.forEach(function (k) {
-        var list2 = list.filter(function (r) { return (r[key] || '—') === k; });
-        var sample = list2[0];
+        var list2 = list.filter(function (r) { return keyOf(r) === k; });
+        var sample = list2.filter(function (r) { return r.Kind === wantKind; })[0] || list2[0];
         var card = document.createElement('div');
         card.className = 'am-itemgroup am-nest';
         card.style.marginLeft = (level * 14) + 'px';
@@ -1445,7 +1453,7 @@ function valueRow(v, showPath) {
         var head = document.createElement('div');
         head.className = 'am-itemhead';
         var t = document.createElement('strong');
-        t.textContent = k;
+        t.textContent = k.split('\u0001')[0];
         head.appendChild(t);
 
         var meta = document.createElement('div');
