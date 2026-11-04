@@ -209,6 +209,43 @@ public class DataController : ControllerBase
         return Ok(new { Removed = removed });
     }
 
+    public class BulkRow
+    {
+        public string JellyfinId { get; set; } = string.Empty;
+        public string Field { get; set; } = string.Empty;
+        public string Value { get; set; } = string.Empty;
+    }
+
+    public class BulkSetRequest
+    {
+        public List<BulkRow> Rows { get; set; } = new();
+        public string NewValue { get; set; } = string.Empty;
+    }
+
+    [HttpPost("BulkSet")]
+    public ActionResult BulkSet([FromBody] BulkSetRequest body)
+    {
+        if (ScanRunning())
+        {
+            return Ok(new { Ok = false, Message = "A scan is running." });
+        }
+
+        if (body is null || body.Rows.Count == 0)
+        {
+            return Ok(new { Ok = false, Message = "Nothing was selected." });
+        }
+
+        var done = 0;
+        foreach (var r in body.Rows)
+        {
+            if (string.IsNullOrWhiteSpace(r.JellyfinId) || string.IsNullOrWhiteSpace(r.Field)) { continue; }
+            _store.SetOverride(r.JellyfinId, r.Field, r.Value, body.NewValue);
+            done++;
+        }
+
+        return Ok(new { Ok = true, Applied = done });
+    }
+
     [HttpPost("SyncFields")]
     public ActionResult SyncFields()
     {
