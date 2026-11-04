@@ -1165,10 +1165,27 @@ COALESCE(i.parent_id,'') AS parent, COALESCE(i.disc,0) AS disc, COALESCE(i.track
             var where = new List<string>();
             var args = new List<(string K, object V)>();
 
-            if (!string.IsNullOrWhiteSpace(field))
+            var names = (field ?? string.Empty)
+                .Split(',', StringSplitOptions.RemoveEmptyEntries)
+                .Select(x => x.Trim().ToUpperInvariant())
+                .Where(x => x.Length > 0)
+                .ToArray();
+
+            if (names.Length == 1)
             {
                 where.Add("field = $f");
-                args.Add(("$f", field.ToUpperInvariant()));
+                args.Add(("$f", names[0]));
+            }
+            else if (names.Length > 1)
+            {
+                var marks = new List<string>();
+                for (var i = 0; i < names.Length; i++)
+                {
+                    marks.Add("$f" + i);
+                    args.Add(("$f" + i, names[i]));
+                }
+
+                where.Add("field IN (" + string.Join(",", marks) + ")");
             }
 
             if (!string.IsNullOrWhiteSpace(query))
