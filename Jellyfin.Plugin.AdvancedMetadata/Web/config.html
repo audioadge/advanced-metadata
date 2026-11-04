@@ -1422,6 +1422,7 @@ function valueRow(v, showPath) {
       if (level >= path.length) {
         var want = LEVEL_KIND[path[path.length - 1]];
         var leaf = list.filter(function (r) { return !want || r.Kind === want; });
+        if (!leaf.length) { leaf = list.slice(); }
 
         if (want === 'Audio') {
           leaf.sort(function (a, b) {
@@ -1455,7 +1456,30 @@ function valueRow(v, showPath) {
         if (order.indexOf(k) < 0) { order.push(k); }
       });
 
+     var firstOf = {};
+      list.forEach(function (r) {
+        var kk = keyOf(r, key);
+        if (!firstOf[kk]) { firstOf[kk] = r; }
+      });
+
       order.sort(function (a, b) {
+        if (key === 'Item') {
+          var ar = firstOf[a] || {};
+          var br = firstOf[b] || {};
+
+          var ad = ar.Disc || 0;
+          var bd = br.Disc || 0;
+          if (ad !== bd) { return ad - bd; }
+
+          var at = ar.Track || 0;
+          var bt = br.Track || 0;
+          if (at !== bt) {
+            if (!at) { return 1; }
+            if (!bt) { return -1; }
+            return at - bt;
+          }
+        }
+
         a = String(a).toLowerCase();
         b = String(b).toLowerCase();
         if (a < b) { return sortAsc ? -1 : 1; }
@@ -1715,8 +1739,16 @@ function deleteValue(r) {
       loadData(false);
     });
 
-    $('dataReset').addEventListener('click', function () {
-      clearDataResults();
+   $('dataReset').addEventListener('click', function () {
+      letterFilter = '';
+      groupPath = '';
+      sortKey = 'Artist';
+      sortAsc = true;
+      if ($('dataGroup')) { $('dataGroup').value = ''; }
+      if ($('chkGrouped')) { $('chkGrouped').checked = false; }
+      buildLetters();
+      updateDir();
+      dataOffset = 0;
       loadData(false);
     });
     $('chkPaths').addEventListener('change', redrawData);
