@@ -267,7 +267,7 @@ public class ScanTask : IScheduledTask
                     }
 
                     var raw = ReadRawTags(path, mappings.Select(m => m.SourceTag)
-                        .Concat(new[] { "ARTIST", "ALBUMARTIST", "ALBUM" }));
+                        .Concat(new[] { "ARTIST", "ALBUMARTIST", "ALBUM", "TRACKNUMBER", "DISCNUMBER" }));
 
                     var albumId = ResolveAlbumId(item);
 
@@ -308,6 +308,12 @@ public class ScanTask : IScheduledTask
                         _logger.LogWarning(ex, "Advanced Metadata: could not index {Path}", path);
                         return;
                     }
+
+                    var discNo = 0;
+                    var trackNo = 0;
+                    int.TryParse(SplitValues(raw, "DISCNUMBER", delims).FirstOrDefault(), out discNo);
+                    int.TryParse(SplitValues(raw, "TRACKNUMBER", delims).FirstOrDefault(), out trackNo);
+                    if (discNo > 0 || trackNo > 0) { _store.SetItemOrder(key, discNo, trackNo); }
 
                     foreach (var m in mappings)
                     {
