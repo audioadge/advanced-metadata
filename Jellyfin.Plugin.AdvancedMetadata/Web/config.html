@@ -1405,13 +1405,14 @@ function valueRow(v, showPath) {
     var path = groupPath ? groupPath.split('>') : [];
     var showPaths = $('chkPaths').checked;
 
-    while (path.length && path.length < 3) {
-      var lastKind = LEVEL_KIND[path[path.length - 1]];
-      if (rows.some(function (r) { return r.Kind === lastKind; })) { break; }
+   path = path.filter(function (lv) {
+      var kd = LEVEL_KIND[lv];
+      return rows.some(function (r) { return r.Kind === kd; });
+    });
 
-      var deeper = path[path.length - 1] === 'Artist' ? 'Album' : 'Item';
-      if (path.indexOf(deeper) > -1) { break; }
-      path.push(deeper);
+    if (!path.length && rows.length) {
+      if (rows.some(function (r) { return r.Kind === 'MusicAlbum'; })) { path = ['Album']; }
+      else if (rows.some(function (r) { return r.Kind === 'Audio'; })) { path = ['Item']; }
     }
 
     if (!path.length) {
@@ -1532,6 +1533,13 @@ function valueRow(v, showPath) {
           who.className = 'am-artisttag';
           who.textContent = 'Artist: ' + sample.Artist;
           meta.appendChild(who);
+        }
+
+        if (key === 'Item' && sample.Track) {
+          var trk = document.createElement('span');
+          trk.className = 'am-artisttag';
+          trk.textContent = 'Track ' + sample.Track + (sample.Disc ? ' · Disc ' + sample.Disc : '');
+          meta.appendChild(trk);
         }
 
         if (key === 'Item' && sample.Album && path[level - 1] !== 'Album') {
