@@ -14,7 +14,7 @@ public record FieldRow(string Name, string Display, string Hierarchy, int Items,
 
 public record OverrideRow(string JellyfinId, string Field, string OldValue, string NewValue, string CreatedUtc);
 
-public record BrowseRow(string Id, string Kind, string Item, string Artist, string Album, string Detail, string Field, string Value, bool IsOverride, bool IsDeleted, string OverrideOld, string Added);
+public record BrowseRow(string Id, string Kind, string Item, string Artist, string Album, string Detail, string Field, string Value, bool IsOverride, bool IsDeleted, string OverrideOld, string Added, string Parent, long Disc, long Track);
 
 public class MetadataStore
 {
@@ -109,6 +109,21 @@ public class MetadataStore
     {
         try { SqliteConnection.ClearAllPools(); } catch { }
         Init();
+    }
+
+    /// <summary>Stores disc and track position so album groupings can be ordered.</summary>
+    public void SetItemOrder(string jellyfinId, int disc, int track)
+    {
+        Write(c =>
+        {
+            using var cmd = c.CreateCommand();
+            cmd.CommandText = "UPDATE items SET disc=$d, track=$t WHERE jellyfin_id=$j;";
+            cmd.Parameters.AddWithValue("$d", disc);
+            cmd.Parameters.AddWithValue("$t", track);
+            cmd.Parameters.AddWithValue("$j", jellyfinId);
+            cmd.ExecuteNonQuery();
+            return 0;
+        });
     }
 
     public long SizeBytes
@@ -295,6 +310,8 @@ CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL);");
         AddColumn(c, "items", "album", "TEXT");
         AddColumn(c, "items", "parent_id", "TEXT");
         AddColumn(c, "items", "seen_utc", "TEXT");
+        AddColumn(c, "items", "disc", "INTEGER");
+        AddColumn(c, "items", "track", "INTEGER");
         try { Exec(c, "UPDATE items SET seen_utc = datetime('now') WHERE seen_utc IS NULL;"); } catch { }
 
         try
@@ -1058,7 +1075,8 @@ CASE WHEN EXISTS (SELECT 1 FROM overrides o
 COALESCE((SELECT o.old_value FROM overrides o
           WHERE o.jellyfin_id = i.jellyfin_id AND o.field = f.name AND o.new_value = v.value
           LIMIT 1), '') AS override_old,
-COALESCE(i.seen_utc,'') AS added";
+COALESCE(i.seen_utc,'') AS added,
+COALESCE(i.parent_id,'') AS parent, COALESCE(i.disc,0) AS disc, COALESCE(i.track,0) AS track";
 
     private const string DeletedCols = @"
 i.jellyfin_id AS id, i.kind AS kind,
@@ -1066,7 +1084,8 @@ COALESCE(i.name,'') AS item, COALESCE(i.artist,'') AS artist,
 COALESCE(i.album,'') AS album, COALESCE(i.path,'') AS detail,
 f.name AS field, o.old_value AS value,
 1 AS isoverride, 1 AS isdeleted, o.old_value AS override_old,
-COALESCE(i.seen_utc,'') AS added";
+COALESCE(i.seen_utc,'') AS added,
+COALESCE(i.parent_id,'') AS parent, COALESCE(i.disc,0) AS disc, COALESCE(i.track,0) AS track";
 
     private const string UnionSql =
         "SELECT " + RowCols + @"
@@ -1098,6 +1117,7 @@ COALESCE(i.seen_utc,'') AS added";
         "value" => "value",
         "added" => "added",
         "kind" => "kind",
+        "track" => "disc, track",
         _ => "artist"
     };
 
@@ -1128,7 +1148,8 @@ COALESCE(i.seen_utc,'') AS added";
                 rows.Add(new BrowseRow(
                     r.GetString(0), r.GetString(1), r.GetString(2), r.GetString(3), r.GetString(4),
                     r.GetString(5), r.GetString(6), r.GetString(7),
-                    r.GetInt64(8) != 0, r.GetInt64(9) != 0, r.GetString(10), r.GetString(11)));
+                    r.GetInt64(8) != 0, r.GetInt64(9) != 0, r.GetString(10), r.GetString(11),
+                    r.GetString(12), r.GetInt64(13), r.GetInt64(14)));
             }
         }
 
