@@ -346,7 +346,7 @@
     <h3>Filter data by mapping</h3>
     <div class="am-field">
       <div class="am-label">Mapping</div>
-      <select id="dataField"><option value="">— All mappings —</option></select>
+      <select id="dataField" multiple size="6"><option value="">— All mappings —</option></select>
     </div>
 <div class="am-field">
       <div class="am-label">Hierarchy</div>
@@ -1646,7 +1646,11 @@ var letterFilter = '';
       if (!n) { setStatus('dataStatus', 'warn', 'Type part of a title first.'); return; }
       url = 'AdvancedMetadataData/Item?name=' + encodeURIComponent(n);
     } else {
-      url = 'AdvancedMetadataData/Values?field=' + encodeURIComponent($('dataField').value)
+      var picked = Array.prototype.slice.call($('dataField').selectedOptions || [])
+        .map(function (o) { return o.value; })
+        .filter(function (v) { return v; });
+
+      url = 'AdvancedMetadataData/Values?field=' + encodeURIComponent(picked.join(','))
           + '&q=' + encodeURIComponent($('dataValue').value.trim());
     }
     url += '&kind=' + encodeURIComponent($('dataKind').value);
