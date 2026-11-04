@@ -1405,6 +1405,15 @@ function valueRow(v, showPath) {
     var path = groupPath ? groupPath.split('>') : [];
     var showPaths = $('chkPaths').checked;
 
+    while (path.length && path.length < 3) {
+      var lastKind = LEVEL_KIND[path[path.length - 1]];
+      if (rows.some(function (r) { return r.Kind === lastKind; })) { break; }
+
+      var deeper = path[path.length - 1] === 'Artist' ? 'Album' : 'Item';
+      if (path.indexOf(deeper) > -1) { break; }
+      path.push(deeper);
+    }
+
     if (!path.length) {
       var flat = document.createElement('div');
       flat.className = 'am-itemgroup';
@@ -1415,14 +1424,15 @@ function valueRow(v, showPath) {
 
     function keyOf(r, key) {
       var base = r[key] || '—';
-      return key === 'Item' ? base + '\u0001' + (r.Parent || r.Album || '') : base;
+      return key === 'Item'
+        ? base + '\u0001' + (r.Parent || r.Album || '') + '\u0001' + (r.Detail || '')
+        : base;
     }
 
     function render(list, level, parent) {
       if (level >= path.length) {
         var want = LEVEL_KIND[path[path.length - 1]];
         var leaf = list.filter(function (r) { return !want || r.Kind === want; });
-        if (!leaf.length) { leaf = list.slice(); }
 
         if (want === 'Audio') {
           leaf.sort(function (a, b) {
@@ -1709,6 +1719,11 @@ function deleteValue(r) {
   function wireData() {
     $('btnDataItem').addEventListener('click', function () { dataMode = 'item'; dataOffset = 0; loadData(false); });
     $('dataItem').addEventListener('keydown', function (e) { if (e.key === 'Enter') { $('btnDataItem').click(); } });
+    $('btnDataField').addEventListener('click', function () {
+      dataMode = 'field';
+      dataOffset = 0;
+      loadData(false);
+    });
     $('btnDataField').addEventListener('click', function () { dataMode = 'field'; dataOffset = 0; loadData(false); });
     $('dataValue').addEventListener('keydown', function (e) { if (e.key === 'Enter') { $('btnDataField').click(); } });
     $('btnMore').addEventListener('click', function () { loadData(true); });
