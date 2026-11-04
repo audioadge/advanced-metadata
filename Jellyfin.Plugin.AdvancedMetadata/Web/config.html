@@ -1413,20 +1413,30 @@ function valueRow(v, showPath) {
       return;
     }
 
-    if (level >= path.length) {
+    function keyOf(r, key) {
+      var base = r[key] || '—';
+      return key === 'Item' ? base + '\u0001' + (r.Parent || r.Album || '') : base;
+    }
+
+    function render(list, level, parent) {
+      if (level >= path.length) {
         var want = LEVEL_KIND[path[path.length - 1]];
         var leaf = list.filter(function (r) { return !want || r.Kind === want; });
 
         if (want === 'Audio') {
           leaf.sort(function (a, b) {
-            if ((a.Disc || 0) !== (b.Disc || 0)) { return (a.Disc || 0) - (b.Disc || 0); }
-            if ((a.Track || 0) !== (b.Track || 0)) {
-              var at = a.Track || 0;
-              var bt = b.Track || 0;
+            var ad = a.Disc || 0;
+            var bd = b.Disc || 0;
+            if (ad !== bd) { return ad - bd; }
+
+            var at = a.Track || 0;
+            var bt = b.Track || 0;
+            if (at !== bt) {
               if (!at) { return 1; }
               if (!bt) { return -1; }
               return at - bt;
             }
+
             return String(a.Item || '').localeCompare(String(b.Item || ''));
           });
         }
@@ -1439,14 +1449,9 @@ function valueRow(v, showPath) {
       var wantKind = LEVEL_KIND[key];
       var order = [];
 
-     var keyOf = function (r) {
-        var base = r[key] || '—';
-        return key === 'Item' ? base + '\u0001' + (r.Parent || r.Album || '') : base;
-      };
-
       list.forEach(function (r) {
         if (wantKind && r.Kind !== wantKind) { return; }
-        var k = keyOf(r);
+        var k = keyOf(r, key);
         if (order.indexOf(k) < 0) { order.push(k); }
       });
 
@@ -1459,14 +1464,16 @@ function valueRow(v, showPath) {
       });
 
       order.forEach(function (k) {
-        var list2 = list.filter(function (r) { return keyOf(r) === k; });
+        var list2 = list.filter(function (r) { return keyOf(r, key) === k; });
         var sample = list2.filter(function (r) { return r.Kind === wantKind; })[0] || list2[0];
+
         var card = document.createElement('div');
         card.className = 'am-itemgroup am-nest';
         card.style.marginLeft = (level * 14) + 'px';
 
         var head = document.createElement('div');
         head.className = 'am-itemhead';
+
         var t = document.createElement('strong');
         t.textContent = k.split('\u0001')[0];
         head.appendChild(t);
@@ -1499,7 +1506,7 @@ function valueRow(v, showPath) {
         }
 
         if (level < path.length - 1) {
-          var own = list2.filter(function (r) { return r.Kind === LEVEL_KIND[key]; });
+          var own = list2.filter(function (r) { return r.Kind === wantKind; });
           own.forEach(function (r) { card.appendChild(valueRow(r, showPaths)); });
         }
 
