@@ -105,6 +105,8 @@
   .am-itemmeta { font-size: .78em; color: #8b949e; margin-top: 3px; display: flex; gap: 10px; align-items: baseline; }
   .am-kindtag { text-transform: uppercase; letter-spacing: .06em; border: 1px solid #30363d; border-radius: 3px; padding: 1px 5px; font-size: .95em; }
   .am-artisttag { font-style: italic; }
+  #AdvancedMetadataConfigPage { background: #0b0f14; position: relative; z-index: 2; min-height: 100vh; padding-bottom: 40px; }
+  #AdvancedMetadataConfigPage .am-nav { margin-top: 10px; }
   .am-sortbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 10px 0 4px; font-size: .9em; }
   .am-sortbar label { display: flex; gap: 6px; align-items: center; color: #8b949e; }
   .am-letters { display: flex; gap: 2px; flex-wrap: wrap; }
@@ -2170,8 +2172,10 @@ function applyDiagVisibility() {
       unhidInfo = 'ok';
 
      [wireCreate, wireManage, wireData, wireScan, wireAdvanced, wireBackup, wireDiag, watchRoute, applyDiagVisibility].forEach(function (fn) {
-        try { fn(); } catch (e) { console.warn('Advanced Metadata: wiring step failed', e); }
-      });
+        try {
+          fn();
+            } catch (e) { console.error('Advanced Metadata: wiring failed in', fn.name, e); }
+          });
       diag('wiring done');
 
       document.addEventListener('click', onNavClick, true);
