@@ -1173,7 +1173,7 @@ COALESCE(i.parent_id,'') AS parent, COALESCE(i.disc,0) AS disc, COALESCE(i.track
 
             if (!string.IsNullOrWhiteSpace(query))
             {
-                where.Add("value LIKE $like");
+                where.Add("(value LIKE $like OR artist LIKE $like OR item LIKE $like OR field LIKE $like)");
                 args.Add(("$like", "%" + query + "%"));
             }
 
