@@ -259,10 +259,17 @@ public class ScanTask : IScheduledTask
                         return;
                     }
 
-                    var unchanged = !full && _store.IsUnchanged(key, mtime, size);
-                    if (unchanged && backfill.Count == 0 && !_store.ItemMissingMeta(key))
+                   var unchanged = !full && _store.IsUnchanged(key, mtime, size);
+                   if (unchanged && backfill.Count == 0 && !_store.ItemMissingMeta(key))
                     {
-                        Interlocked.Increment(ref skipped);
+                        var seen = Interlocked.Increment(ref skipped);
+                        if (seen <= 5)
+                        {
+                            _logger.LogInformation(
+                                "Advanced Metadata: skipped {Path} (mtime {Mtime}, size {Size})",
+                                path, mtime, size);
+                        }
+
                         return;
                     }
 
