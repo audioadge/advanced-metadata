@@ -1462,6 +1462,13 @@ function valueRow(v, showPath) {
         if (!firstOf[kk]) { firstOf[kk] = r; }
       });
 
+      if (!order.length) {
+        list.forEach(function (r) {
+          var kf = keyOf(r, key);
+          if (order.indexOf(kf) < 0) { order.push(kf); }
+        });
+      }
+
       order.sort(function (a, b) {
         if (key === 'Item') {
           var ar = firstOf[a] || {};
@@ -1515,6 +1522,13 @@ function valueRow(v, showPath) {
           who.className = 'am-artisttag';
           who.textContent = 'Artist: ' + sample.Artist;
           meta.appendChild(who);
+        }
+
+        if (key === 'Item' && sample.Album && path[level - 1] !== 'Album') {
+          var which = document.createElement('span');
+          which.className = 'am-artisttag';
+          which.textContent = 'Album: ' + sample.Album;
+          meta.appendChild(which);
         }
 
         head.appendChild(meta);
@@ -1758,9 +1772,8 @@ function deleteValue(r) {
       redrawData();
       clearTimeout(filterTimer);
       filterTimer = setTimeout(function () {
-        var term = $('dataFilter').value.trim();
-        if (dataMode === 'field') { $('dataValue').value = term; }
-        else { $('dataItem').value = term; }
+        if (dataMode !== 'field') { return; }
+        $('dataValue').value = $('dataFilter').value.trim();
         dataOffset = 0;
         loadData(false);
       }, 350);
