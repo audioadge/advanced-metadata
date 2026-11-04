@@ -1410,6 +1410,19 @@ function valueRow(v, showPath) {
       return rows.some(function (r) { return r.Kind === kd; });
     });
 
+    if (path.length > 1) {
+      var deepest = LEVEL_KIND[path[path.length - 1]];
+      path = path.filter(function (lv, i) {
+        if (i === path.length - 1) { return true; }
+        var kd = LEVEL_KIND[lv];
+        return rows.some(function (r) { return r.Kind === kd && r.Field === deepestField(); });
+      });
+    }
+
+    function deepestField() {
+      return rows.length ? rows[0].Field : '';
+    }
+
     if (!path.length && rows.length) {
       if (rows.some(function (r) { return r.Kind === 'MusicAlbum'; })) { path = ['Album']; }
       else if (rows.some(function (r) { return r.Kind === 'Audio'; })) { path = ['Item']; }
@@ -1795,6 +1808,8 @@ function deleteValue(r) {
       sortAsc = true;
       if ($('dataGroup')) { $('dataGroup').value = ''; }
       if ($('chkGrouped')) { $('chkGrouped').checked = false; }
+      if ($('chkOverrides')) { $('chkOverrides').checked = false; }
+      if ($('chkPaths')) { $('chkPaths').checked = false; }
       buildLetters();
       updateDir();
       dataOffset = 0;
