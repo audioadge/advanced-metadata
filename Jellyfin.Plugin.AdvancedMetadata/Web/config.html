@@ -1453,7 +1453,13 @@ function valueRow(v, showPath) {
           });
         }
 
-        leaf.forEach(function (r) { parent.appendChild(valueRow(r, showPaths)); });
+        var seenLeaf = {};
+        leaf.forEach(function (r) {
+          var sig = r.Field + '\u0001' + r.Value;
+          if (seenLeaf[sig]) { return; }
+          seenLeaf[sig] = 1;
+          parent.appendChild(valueRow(r, showPaths));
+        });
         return;
       }
 
@@ -1563,7 +1569,13 @@ function valueRow(v, showPath) {
 
         if (level < path.length - 1) {
           var own = list2.filter(function (r) { return r.Kind === wantKind; });
-          own.forEach(function (r) { card.appendChild(valueRow(r, showPaths)); });
+          var seenOwn = {};
+          own.forEach(function (r) {
+            var sig = r.Field + '\u0001' + r.Value;
+            if (seenOwn[sig]) { return; }
+            seenOwn[sig] = 1;
+            card.appendChild(valueRow(r, showPaths));
+          });
         }
 
         parent.appendChild(card);
