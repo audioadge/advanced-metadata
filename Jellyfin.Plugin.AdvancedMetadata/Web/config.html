@@ -391,6 +391,7 @@
       <button id="dataDir" class="am-btn" title="Reverse the order">↑</button>
       <button id="dataReset" class="am-btn">Reset Sort</button>
       <button id="btnBulkEdit" class="am-btn am-btn-primary" style="display:none">Edit selected (0)</button>
+      <button id="btnBulkClear" class="am-btn" style="display:none">Cancel</button>
       <span class="am-letters" id="dataLetters"></span>
     </div>
 
@@ -422,6 +423,7 @@
           <th style="width:18%" data-sort="Item">Title</th>
           <th style="width:9%" data-sort="Kind">Type</th>
           <th style="width:13%" data-sort="Field">Mapping</th>
+          <th style="width:26px"></th>
           <th style="width:20%" data-sort="Value">Value</th>
           <th style="width:9%" data-sort="Added">Added</th>
           <th style="width:9%"></th>
@@ -1219,8 +1221,7 @@ function renderManage() {
       (list || []).forEach(function (f) {
         var o = document.createElement('option');
         o.value = f.Name || f.name;
-        var n = (f.Items != null ? f.Items : 0);
-        o.textContent = (f.Display || f.Name) + '  —  ' + n + ' item(s) indexed';
+        o.textContent = (f.Display || f.Name);
         sel.appendChild(o);
       });
       sel.value = keep;
@@ -1289,7 +1290,7 @@ function clearDataResults() {
         var sig = r.Id + '\u0001' + r.Field + '\u0001' + r.Value;
         if (pick.checked) {
           if (!bulkSelected.some(function (x) { return x.Sig === sig; })) {
-            bulkSelected.push({ Sig: sig, Id: r.Id, Field: r.Field, Value: r.Value });
+            bulkSelected.push({ Sig: sig, JellyfinId: r.Id, Field: r.Field, Value: r.Value });
           }
         } else {
           bulkSelected = bulkSelected.filter(function (x) { return x.Sig !== sig; });
@@ -1297,13 +1298,14 @@ function clearDataResults() {
         updateBulkCount();
       });
       pickCell.appendChild(pick);
-      tr.appendChild(pickCell);
 
       var a = document.createElement('td'); a.textContent = r.Artist || '—'; a.title = r.Artist || ''; tr.appendChild(a);
       var b = document.createElement('td'); b.textContent = r.Item; b.title = r.Detail || r.Item; tr.appendChild(b);
       var c = document.createElement('td'); c.textContent = KIND_LABEL[r.Kind] || r.Kind; tr.appendChild(c);
       var d = document.createElement('td'); d.className = 'am-mono'; d.textContent = r.Field; tr.appendChild(d);
-     var e = document.createElement('td'); e.textContent = r.Value; e.title = r.Value;
+      tr.appendChild(pickCell);
+
+      var e = document.createElement('td'); e.textContent = r.Value; e.title = r.Value;
       if (r.IsOverride) {
         var mark = document.createElement('span');
         mark.textContent = ' ●';
@@ -1433,15 +1435,6 @@ function valueRow(v, showPath) {
       var kd = LEVEL_KIND[lv];
       return rows.some(function (r) { return r.Kind === kd; });
     });
-
-    if (path.length > 1) {
-      var deepest = LEVEL_KIND[path[path.length - 1]];
-      path = path.filter(function (lv, i) {
-        if (i === path.length - 1) { return true; }
-        var kd = LEVEL_KIND[lv];
-        return rows.some(function (r) { return r.Kind === kd && r.Field === deepestField(); });
-      });
-    }
 
     function deepestField() {
       return rows.length ? rows[0].Field : '';
@@ -1642,9 +1635,11 @@ var letterFilter = '';
 
   function updateBulkCount() {
     var b = $('btnBulkEdit');
+    var c = $('btnBulkClear');
     if (!b) { return; }
     b.style.display = bulkSelected.length ? '' : 'none';
     b.textContent = 'Edit selected (' + bulkSelected.length + ')';
+    if (c) { c.style.display = bulkSelected.length ? '' : 'none'; }
   }
 
   function updateDir() {
@@ -1838,18 +1833,20 @@ function deleteValue(r) {
       loadData(false);
     });
 
-   $('btnBulkEdit').addEventListener('click', function () {
+   $('btnBulkClear').addEventListener('click', function () {
+      bulkSelected = [];
+      updateBulkCount();
+      redrawData();
+    });
+
+    $('btnBulkEdit').addEventListener('click', function () {
       if (!bulkSelected.length) { return; }
 
       var value = window.prompt(
-        'Set ' + bulkSelected.length + ' selected value(s) to:\n\n'
-        + 'Each row\u2019s current value is replaced. The original stays recorded against each row, '
-        + 'so Revert still works per row.', '');
+        'REPLACE the value on all ' + bulkSelected.length + ' selected row(s) with:\n\n'
+        + 'Each row\u2019s current value is overwritten. The original stays recorded against each row, '
+        + 'so Revert still works per row.\n\nEnter the new value:', '');
       if (value === null) { return; }
-
-      var ok = window.confirm('REPLACE the value on all ' + bulkSelected.length
-        + ' selected row(s) with:\n\n' + value + '\n\nContinue?');
-      if (!ok) { return; }
 
       setStatus('dataStatus', 'info', 'Applying…');
 
