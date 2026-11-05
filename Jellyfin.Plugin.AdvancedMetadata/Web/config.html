@@ -348,15 +348,6 @@
     <div class="am-sep"></div>
 
     <h3>Search by mapping</h3>
-    <div class="am-card" style="max-width:680px; border-left:4px solid #2f81f7">
-      <strong>How grouping works</strong>
-      <div class="am-hint" style="margin-top:6px">
-        A grouping only shows an entity where that entity has scanned values of its own. Grouping by
-        Artist › Album › Song shows a song only when the artist, the album and the song all carry
-        values for the mappings you selected. An untagged album therefore drops out of an
-        Artist › Album › Song view even if its tracks are tagged.
-      </div>
-    </div>
     <div class="am-hint" style="max-width:680px; margin-bottom:10px">
       Select one or more mappings, and optionally narrow by content level and value.
     </div>
@@ -392,7 +383,17 @@
     </div>
    <div id="dataCount" class="am-hint"></div>
 
-<div class="am-sortbar">
+    <div class="am-card" style="max-width:680px; border-left:4px solid #2f81f7">
+      <strong>How grouping works</strong>
+      <div class="am-hint" style="margin-top:6px">
+        A grouping only shows an entity where that entity has scanned values of its own. Grouping by
+        Artist › Album › Song shows a song only when the artist, the album and the song all carry
+        values for the mappings you selected. An untagged album therefore drops out of an
+        Artist › Album › Song view even if its tracks are tagged.
+      </div>
+    </div>
+    
+    <div class="am-sortbar">
       <label>Group by
         <select id="dataGroup">
           <option value="">None — one row per value</option>
@@ -1484,13 +1485,13 @@ function valueRow(v, showPath) {
     });
 
    if (path.indexOf('Artist') > -1) {
-      var albumArtists = {};
+      var fieldsBelow = {};
       rows.forEach(function (r) {
-        if (r.Kind === 'MusicAlbum' && r.Artist) { albumArtists[r.Artist] = 1; }
+        if (r.Kind !== 'MusicArtist') { fieldsBelow[r.Field] = 1; }
       });
 
       var artistKept = rows.some(function (r) {
-        return r.Kind === 'MusicArtist' && albumArtists[r.Item || ''];
+        return r.Kind === 'MusicArtist' && fieldsBelow[r.Field];
       });
 
       if (!artistKept) {
