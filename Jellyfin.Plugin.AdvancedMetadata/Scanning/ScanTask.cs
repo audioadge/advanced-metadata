@@ -115,6 +115,16 @@ public class ScanTask : IScheduledTask
                 "Advanced Metadata: {Dup} duplicate mapping(s) collapsed by source tag",
                 declared.Count - mappings.Count);
         }
+        // Optional single-mapping scope: read every item, but only for this one tag.
+        var mappingScoped = false;
+        if (!string.IsNullOrWhiteSpace(cfg.PendingScanMappingId))
+        {
+            var only = mappings.Where(m => m.Id.ToString() == cfg.PendingScanMappingId).ToList();
+            cfg.PendingScanMappingId = string.Empty;
+
+            if (only.Count > 0) { mappings = only; mappingScoped = true; }
+        }
+
         var knownIds = cfg.KnownMappingIds.ToHashSet();
 
         var backfill = mappings
@@ -123,6 +133,12 @@ public class ScanTask : IScheduledTask
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         if (full) { backfill.Clear(); }
+
+        if (mappingScoped && mappings.Count > 0)
+        {
+            backfill.Clear();
+            backfill.Add(mappings[0].SourceTag);
+        }
         cfg.LastScanBackfill = backfill.Count;
         plugin.UpdateConfiguration(cfg);
 
