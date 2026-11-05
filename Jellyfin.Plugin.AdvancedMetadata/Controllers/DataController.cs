@@ -167,6 +167,10 @@ public class DataController : ControllerBase
 
         var all = new List<BrowseRow>(found.Rows);
 
+        var fields = found.Rows
+            .Select(v => v.Field)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
         // Pull in the albums these items belong to, then the artists of those albums.
         var albumIds = found.Rows
             .Select(v => v.Parent)
@@ -176,7 +180,10 @@ public class DataController : ControllerBase
 
         if (albumIds.Count > 0)
         {
-            var albums = _store.BrowseIds(albumIds, kind, onlyOverrides == true, sort, desc == true, 2000, 0).Rows;
+            var albums = _store.BrowseIds(albumIds, kind, onlyOverrides == true, sort, desc == true, 2000, 0).Rows
+                .Where(v => fields.Contains(v.Field))
+                .ToList();
+
             all.AddRange(albums);
 
             var artistNames = albums
@@ -201,7 +208,8 @@ public class DataController : ControllerBase
 
             if (artistIds.Count > 0)
             {
-                all.AddRange(_store.BrowseIds(artistIds, kind, onlyOverrides == true, sort, desc == true, 2000, 0).Rows);
+                all.AddRange(_store.BrowseIds(artistIds, kind, onlyOverrides == true, sort, desc == true, 2000, 0).Rows
+                    .Where(v => fields.Contains(v.Field)));
             }
         }
 
