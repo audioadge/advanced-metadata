@@ -134,7 +134,9 @@ public class ScanTask : IScheduledTask
 
         if (full) { backfill.Clear(); }
 
-        if (mappingScoped && mappings.Count > 0)
+        // A scoped scan stays incremental: unchanged files are skipped, so it is quick.
+        // Only a mapping that has never been scanned gets a forced pass.
+        if (mappingScoped && mappings.Count > 0 && backfill.Contains(mappings[0].SourceTag))
         {
             backfill.Clear();
             backfill.Add(mappings[0].SourceTag);
