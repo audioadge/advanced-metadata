@@ -7,6 +7,7 @@ using System.Text.Json;
 using System.Threading;
 using Jellyfin.Plugin.AdvancedMetadata.Configuration;
 using Jellyfin.Plugin.AdvancedMetadata.Store;
+using Jellyfin.Data.Enums;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Model.Tasks;
 using Microsoft.AspNetCore.Authorization;
@@ -25,11 +26,13 @@ public class DataController : ControllerBase
 
     private readonly MetadataStore _store;
     private readonly ITaskManager _tasks;
+    private readonly ILibraryManager _library;
 
-    public DataController(MetadataStore store, ITaskManager tasks)
+    public DataController(MetadataStore store, ITaskManager tasks, ILibraryManager library)
     {
         _store = store;
         _tasks = tasks;
+        _library = library;
     }
 
     private static bool ScanRunning()
@@ -161,15 +164,49 @@ public class DataController : ControllerBase
         var found = _store.BrowseItem(name ?? string.Empty, kind, onlyOverrides == true,
                                       sort, desc == true, letter, lim, off);
 
-        // Artist rows are only wanted when that artist is the album artist of an album in the result.
-        var albumArtists = found.Rows
-            .Where(v => v.Kind == "MusicAlbum")
-            .Select(v => v.Artist)
-            .Where(a => !string.IsNullOrWhiteSpace(a))
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var all = new List<Store.BrowseRow>(found.Rows);
 
-        var rows = found.Rows
-            .Where(v => v.Kind != "MusicArtist" || albumArtists.Contains(v.Item))
+        // Pull in the albums these items belong to, then the artists of those albums.
+        var albumIds = found.Rows
+            .Select(v => v.Parent)
+            .Where(p => !string.IsNullOrWhiteSpace(p))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (albumIds.Count > 0)
+        {
+            var albums = _store.BrowseIds(albumIds, kind, onlyOverrides == true, sort, desc, 2000, 0).Rows;
+            all.AddRange(albums);
+
+            var artistNames = albums
+                .Select(a => a.Artist)
+                .Where(a => !string.IsNullOrWhiteSpace(a))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            var artistIds = new List<string>();
+            foreach (var n in artistNames)
+            {
+                var hit = _library.GetItemList(new InternalItemsQuery
+                {
+                    IncludeItemTypes = new[] { BaseItemKind.MusicArtist },
+                    Name = n,
+                    Recursive = true,
+                    Limit = 1
+                }).FirstOrDefault();
+
+                if (hit is not null) { artistIds.Add(hit.Id.ToString("N")); }
+            }
+
+            if (artistIds.Count > 0)
+            {
+                all.AddRange(_store.BrowseIds(artistIds, kind, onlyOverrides == true, sort, desc, 2000, 0).Rows);
+            }
+        }
+
+        var rows = all
+            .GroupBy(v => v.Id + "\u0001" + v.Field + "\u0001" + v.Value)
+            .Select(g => g.First())
             .ToList();
 
         return Ok(new
