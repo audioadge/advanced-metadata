@@ -137,7 +137,7 @@ public class DataController : ControllerBase
                                [FromQuery] bool? onlyOverrides, [FromQuery] string? sort, [FromQuery] bool? desc,
                                [FromQuery] string? letter, [FromQuery] int? limit, [FromQuery] int? offset)
     {
-        var lim = Math.Clamp(limit ?? 300, 1, 2000);
+        var lim = Math.Clamp(limit ?? 300, 1, 5000);
         var off = Math.Max(0, offset ?? 0);
         var result = _store.BrowseField(field ?? string.Empty, q, kind,
                                         onlyOverrides: onlyOverrides == true,
@@ -159,7 +159,7 @@ public class DataController : ControllerBase
                              [FromQuery] bool? onlyOverrides, [FromQuery] string? sort, [FromQuery] bool? desc,
                              [FromQuery] string? letter, [FromQuery] int? limit, [FromQuery] int? offset)
     {
-        var lim = Math.Clamp(limit ?? 300, 1, 2000);
+        var lim = Math.Clamp(limit ?? 300, 1, 5000);
         var off = Math.Max(0, offset ?? 0);
 
         var found = _store.BrowseItem(name ?? string.Empty, kind, onlyOverrides == true,
