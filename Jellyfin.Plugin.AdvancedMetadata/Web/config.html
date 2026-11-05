@@ -339,7 +339,6 @@
     </div>
     <div class="am-actions">
       <button id="btnDataItem" class="am-btn am-btn-primary">Content Search</button>
-      <button id="btnClearData" class="am-btn">Reset Search</button>
     </div>
 
     <div class="am-sep"></div>
@@ -367,7 +366,7 @@
     </div>
     <div class="am-actions">
       <button id="btnDataField" class="am-btn am-btn-primary">Mapping Search</button>
-      <button id="btnClearData" class="am-btn">Reset Search</button>
+      <button id="btnResetSearch" class="am-btn">Reset Search</button>
     </div>
 
     <div id="dataStatus" class="am-status"></div>
@@ -394,7 +393,8 @@
         </select>
       </label>
       <button id="dataDir" class="am-btn" title="Reverse the order">↑</button>
-      <a href="#" id="dataReset" class="am-hint" style="text-decoration:underline">Reset sort</a>
+      <a href="javascript:void(0)" id="dataReset" class="am-hint"
+         style="text-decoration:underline; cursor:pointer; color:#c9d1d9">Reset sort</a>
       <button id="btnBulkEdit" class="am-btn am-btn-primary" style="display:none">Edit selected (0)</button>
       <button id="btnBulkClear" class="am-btn" style="display:none">Cancel</button>
       <span class="am-letters" id="dataLetters"></span>
@@ -1443,14 +1443,14 @@ function valueRow(v, showPath) {
       return rows.some(function (r) { return r.Kind === kd; });
     });
 
-    if (path.indexOf('Artist') > -1) {
-      var albumNames = {};
+   if (path.indexOf('Artist') > -1) {
+      var albumArtists = {};
       rows.forEach(function (r) {
-        if (r.Kind === 'MusicAlbum' && r.Item) { albumNames[r.Item] = 1; }
+        if (r.Kind === 'MusicAlbum' && r.Artist) { albumArtists[r.Artist] = 1; }
       });
 
       var artistKept = rows.some(function (r) {
-        return r.Kind === 'MusicArtist' && albumNames[r.Album || ''];
+        return r.Kind === 'MusicArtist' && albumArtists[r.Item || ''];
       });
 
       if (!artistKept) {
@@ -1855,7 +1855,16 @@ function deleteValue(r) {
       loadData(false);
     });
 
-   $('btnBulkClear').addEventListener('click', function () {
+   $('btnResetSearch').addEventListener('click', function () {
+      $('dataItem').value = '';
+      $('dataField').value = '';
+      $('dataValue').value = '';
+      $('dataFilter').value = '';
+      clearDataResults();
+      loadData(false);
+    });
+
+    $('btnBulkClear').addEventListener('click', function () {
       bulkSelected = [];
       updateBulkCount();
       redrawData();
