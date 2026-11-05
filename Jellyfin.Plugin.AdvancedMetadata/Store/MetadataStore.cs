@@ -1207,7 +1207,31 @@ COALESCE(i.parent_id,'') AS parent, COALESCE(i.disc,0) AS disc, COALESCE(i.track
                        sort, desc, Math.Max(1, limit), Math.Max(0, offset));
         });
 
-    /// <summary>All indexed values for items matching a title, artist, album or filename.</summary>
+   
+       /// <summary>Rows for a specific set of item ids, used to pull ancestors in.</summary>
+        public BrowseResult BrowseIds(IEnumerable<string> ids, string? kind = null, bool onlyOverrides = false,
+                                      string? sort = null, bool desc = false, int limit = 2000, int offset = 0)
+        {
+            var list = ids.Where(i => !string.IsNullOrWhiteSpace(i)).Distinct().Take(400).ToList();
+            if (list.Count == 0) { return new BrowseResult(new List<BrowseRow>(), 0); }
+    
+            using var c = NewConn();
+            var where = new List<string>();
+            var args = new List<(string K, object V)>();
+    
+            for (var i = 0; i < list.Count; i++)
+            {
+                where.Add("id = $i" + i);
+                args.Add(("$i" + i, list[i]));
+            }
+    
+            if (!string.IsNullOrWhiteSpace(kind)) { where.Add("kind = $kind"); args.Add(("$kind", kind)); }
+            if (onlyOverrides) { where.Add("(isoverride = 1 OR isdeleted = 1)"); }
+    
+            return Run(c, "(" + string.Join(" OR ", where) + ")", args, sort, desc,
+                       Math.Max(1, limit), Math.Max(0, offset));
+        }
+     /// <summary>All indexed values for items matching a title, artist, album or filename.</summary>
     public BrowseResult BrowseItem(string name = "", string? kind = null, bool onlyOverrides = false,
                                    string? sort = null, bool desc = false, string? letter = null,
                                    int limit = 300, int offset = 0)
