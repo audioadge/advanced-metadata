@@ -1685,13 +1685,12 @@ function valueRow(v, showPath) {
 function redrawData() {
     if (!Array.isArray(dataRowsAll)) { dataRowsAll = []; }
     var rows = applyFilter(dataRowsAll);
-    $('dataCount').textContent = rows.length + ' row(s) shown · ' + dataRowsAll.length
-      + ' of ' + dataTotal + ' loaded'
-      + (dataRowsAll.length < dataTotal ? ' — use Show more for the rest' : '');
+    $('dataCount').textContent = dataRowsAll.length + ' row(s) shown of ' + dataRowsAll.length
+        + (dataRowsAll.length >= pageSize ? ' — more available' : '');
     $('dataTable').classList.toggle('hidepath', !$('chkPaths').checked);
     if ($('chkGrouped').checked) { renderGrouped(rows); }
     else { renderFlat(sortRows(rows)); }
-    $('btnMore').style.display = (dataRowsAll.length >= PAGE_SIZE) ? 'inline-block' : 'none';
+    $('btnMore').style.display = (dataRowsAll.length >= (groupPath ? 3000 : PAGE_SIZE)) ? 'inline-block' : 'none';
   }
 
 var letterFilter = '';
@@ -1749,10 +1748,12 @@ var letterFilter = '';
     }
     url += '&kind=' + encodeURIComponent($('dataKind').value);
     url += '&onlyOverrides=' + ($('chkOverrides').checked ? 'true' : 'false');
+    var pageSize = groupPath ? 3000 : PAGE_SIZE;
+
     url += '&sort=' + encodeURIComponent(sortKey.toLowerCase())
         + '&desc=' + (sortAsc ? 'false' : 'true')
         + '&letter=' + encodeURIComponent(letterFilter)
-        + '&limit=' + PAGE_SIZE + '&offset=' + (append ? dataOffset : 0);
+        + '&limit=' + pageSize + '&offset=' + (append ? dataOffset : 0);
 
     apiGet(url).then(function (res) {
       var rows = [];
