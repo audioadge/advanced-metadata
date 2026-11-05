@@ -104,6 +104,9 @@
   .am-itemhead strong { font-size: 1em; }
   .am-itemmeta { font-size: .78em; color: #8b949e; margin-top: 3px; display: flex; gap: 10px; align-items: baseline; }
   .am-kindtag { text-transform: uppercase; letter-spacing: .06em; border: 1px solid #30363d; border-radius: 3px; padding: 1px 5px; font-size: .95em; }
+  .am-link { background: none; border: none; padding: 0; font: inherit; font-size: .85em; color: #c9d1d9;
+             text-decoration: underline; cursor: pointer; }
+  .am-link:hover { color: #fff; }
   .am-artisttag { font-style: italic; }
   #AdvancedMetadataConfigPage { background: #0b0f14; position: relative; z-index: 2; min-height: 100vh; padding-bottom: 40px; }
   #AdvancedMetadataConfigPage .am-nav { margin-top: 10px; }
@@ -339,6 +342,7 @@
     </div>
     <div class="am-actions">
       <button id="btnDataItem" class="am-btn am-btn-primary">Content Search</button>
+      <button id="btnResetSearch" class="am-btn">Reset Search</button>
     </div>
 
     <div class="am-sep"></div>
@@ -366,7 +370,7 @@
     </div>
     <div class="am-actions">
       <button id="btnDataField" class="am-btn am-btn-primary">Mapping Search</button>
-      <button id="btnResetSearch" class="am-btn">Reset Search</button>
+      <button id="btnResetSearch2" class="am-btn">Reset Search</button>
     </div>
 
     <div id="dataStatus" class="am-status"></div>
@@ -393,8 +397,7 @@
         </select>
       </label>
       <button id="dataDir" class="am-btn" title="Reverse the order">↑</button>
-      <a href="javascript:void(0)" id="dataReset" class="am-hint"
-         style="text-decoration:underline; cursor:pointer; color:#c9d1d9">Reset sort</a>
+      <button id="dataReset" class="am-link">Reset sort</button>
       <button id="btnBulkEdit" class="am-btn am-btn-primary" style="display:none">Edit selected (0)</button>
       <button id="btnBulkClear" class="am-btn" style="display:none">Cancel</button>
       <span class="am-letters" id="dataLetters"></span>
@@ -1855,14 +1858,16 @@ function deleteValue(r) {
       loadData(false);
     });
 
-   $('btnResetSearch').addEventListener('click', function () {
+   function resetSearch() {
       $('dataItem').value = '';
       $('dataField').value = '';
       $('dataValue').value = '';
       $('dataFilter').value = '';
       clearDataResults();
-      loadData(false);
-    });
+    }
+
+    $('btnResetSearch').addEventListener('click', resetSearch);
+    $('btnResetSearch2').addEventListener('click', resetSearch);
 
     $('btnBulkClear').addEventListener('click', function () {
       bulkSelected = [];
