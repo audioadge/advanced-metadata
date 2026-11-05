@@ -150,46 +150,34 @@ public class DataController : ControllerBase
         });
     }
 
-    [HttpGet("Item")]
+   [HttpGet("Item")]
     public ActionResult Item([FromQuery] string? name, [FromQuery] string? kind,
                              [FromQuery] bool? onlyOverrides, [FromQuery] string? sort, [FromQuery] bool? desc,
                              [FromQuery] string? letter, [FromQuery] int? limit, [FromQuery] int? offset)
     {
         var lim = Math.Clamp(limit ?? 300, 1, 2000);
         var off = Math.Max(0, offset ?? 0);
+
         var found = _store.BrowseItem(name ?? string.Empty, kind, onlyOverrides == true,
                                       sort, desc == true, letter, lim, off);
 
-        var wanted = found.Rows
-            .Select(v => v.Id)
-            .Distinct()
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        var keep = found.Rows
-            .Where(v => v.Kind != "MusicArtist"
-                        || wanted.Contains(v.Id))
-            .ToList();
-        
-        var roots = found.Rows
-            .Where(v => v.Kind != "MusicArtist")
-            .Select(v => v.Album)
+        // Artist rows are only wanted when that artist is the album artist of an album in the result.
+        var albumArtists = found.Rows
+            .Where(v => v.Kind == "MusicAlbum")
+            .Select(v => v.Artist)
             .Where(a => !string.IsNullOrWhiteSpace(a))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         var rows = found.Rows
-            .Where(v => v.Kind != "MusicArtist"
-                        || (v.Album != null && roots.Contains(v.Album)))
+            .Where(v => v.Kind != "MusicArtist" || albumArtists.Contains(v.Item))
             .ToList();
-
-        var result = new BrowseResult(rows, rows.Count);
 
         return Ok(new
         {
-            Total = result.Total,
-            Rows = result.Rows.Select(v => new
+            Total = rows.Count,
+            Rows = rows.Select(v => new
             {
-               v.Id, v.Kind, v.Item, v.Artist, v.Album, v.Detail, v.Field, v.Value,
+                v.Id, v.Kind, v.Item, v.Artist, v.Album, v.Detail, v.Field, v.Value,
                 v.IsOverride, v.IsDeleted, v.OverrideOld, v.Added, v.Parent, v.Disc, v.Track
             })
         });
