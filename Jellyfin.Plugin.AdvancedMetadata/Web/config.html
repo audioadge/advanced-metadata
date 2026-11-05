@@ -1171,6 +1171,24 @@ function renderManage() {
         edit.textContent = 'Edit';
         edit.addEventListener('click', function () { editingId = m.Id; renderManage(); });
 
+        var scanOne = document.createElement('button');
+        scanOne.className = 'am-act';
+        scanOne.textContent = 'Scan';
+        scanOne.title = 'Re-read every item for this mapping only';
+        scanOne.style.marginLeft = '6px';
+        scanOne.addEventListener('click', function () {
+          if (!task) { setStatus('manageStatus', 'err', 'Scan task not found.'); return; }
+          cfg.PendingScanMappingId = m.Id;
+          cfg.PendingScanLibraryId = '';
+          cfg.FullRescanRequested = false;
+          saveConfig(cfg).then(function () {
+            return apiPost('ScheduledTasks/Running/' + task.Id);
+          }).then(function () {
+            setStatus('manageStatus', 'ok', 'Scanning "' + m.SourceTag + '" only. Watch progress on the Scan tab.');
+            setTimeout(refreshTask, 700);
+          }).catch(function (e) { setStatus('manageStatus', 'err', 'SCAN FAILED: ' + e.message); });
+        });
+
         var del = document.createElement('button');
         del.className = 'am-act am-act-danger';
         del.textContent = 'Delete';
@@ -1194,6 +1212,7 @@ function renderManage() {
         });
 
         tdA2.appendChild(edit);
+        tdA2.appendChild(scanOne);
         tdA2.appendChild(del);
         tr.appendChild(tdA2);
       }
