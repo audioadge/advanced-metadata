@@ -348,6 +348,15 @@
     <div class="am-sep"></div>
 
     <h3>Search by mapping</h3>
+    <div class="am-card" style="max-width:680px; border-left:4px solid #2f81f7">
+      <strong>How grouping works</strong>
+      <div class="am-hint" style="margin-top:6px">
+        A grouping only shows an entity where that entity has scanned values of its own. Grouping by
+        Artist › Album › Song shows a song only when the artist, the album and the song all carry
+        values for the mappings you selected. An untagged album therefore drops out of an
+        Artist › Album › Song view even if its tracks are tagged.
+      </div>
+    </div>
     <div class="am-hint" style="max-width:680px; margin-bottom:10px">
       Select one or more mappings, and optionally narrow by content level and value.
     </div>
@@ -460,7 +469,7 @@
       A standard scan only picks up <strong>changed</strong> files. If you have just added a new mapping,
       tick <strong>Full Rescan</strong> below — otherwise the new mapping will have nothing to show.
     </div>
-    
+
     <div class="am-field" style="max-width:620px;margin-top:26px">
       <div class="am-label">Library to scan</div>
       <select id="scanLibrary">
@@ -469,6 +478,15 @@
     <div class="am-hint">Only libraries containing content items are listed, and a scan initiated here
           covers the chosen library; the scheduled scan always covers every library. Full Rescan
           re-reads only the chosen library and leaves the rest intact.</div>
+    </div>
+    
+    <div class="am-field" style="max-width:620px;margin-top:26px">
+      <div class="am-label">Mapping to scan</div>
+      <select id="scanMapping">
+        <option value="">— All mappings —</option>
+      </select>
+      <div class="am-hint">Restricts the scan to one mapping. Every item is still read, so it takes
+      as long as a full scan, but the other mappings' values are untouched.</div>
     </div>
 
     <div class="am-actions">
@@ -917,7 +935,7 @@
      'backupStatus', 'restoreStatus', 'restartStatus'].forEach(function (id) {
       if (id.indexOf(name) < 0) { clearStatus(id); }
     });
-    if (name === 'scan') { refreshTask(); loadLibraries(); }
+    if (name === 'scan') { refreshTask(); loadLibraries(); loadScanMappings(); }
     if (name === 'data') { refreshDataFields(); loadInfo(); }
   };
 
@@ -1587,7 +1605,10 @@ function valueRow(v, showPath) {
 
       order.forEach(function (k) {
         var list2 = list.filter(function (r) { return keyOf(r, key) === k; });
-        var sample = list2.filter(function (r) { return r.Kind === wantKind; })[0] || list2[0];
+        var ownRows = list2.filter(function (r) { return r.Kind === wantKind; });
+        if (!ownRows.length) { return; }
+
+        var sample = ownRows[0];
 
         var card = document.createElement('div');
         card.className = 'am-itemgroup am-nest';
@@ -1642,7 +1663,7 @@ function valueRow(v, showPath) {
         }
 
         if (level < path.length - 1) {
-          var own = list2.filter(function (r) { return r.Kind === wantKind; });
+          var own = ownRows;
           var seenOwn = {};
           own.forEach(function (r) {
             var sig = r.Field + '\u0001' + r.Value;
@@ -2078,6 +2099,19 @@ var LIB_TYPES = {
       .catch(function () { return 0; });
   }
 
+  function loadScanMappings() {
+    var sel = $('scanMapping');
+    if (!sel || !cfg) { return; }
+    sel.innerHTML = '<option value="">— All mappings —</option>';
+    (cfg.Mappings || []).forEach(function (m) {
+      var o = document.createElement('option');
+      o.value = m.Id;
+      o.textContent = m.DisplayName || m.SourceTag;
+      sel.appendChild(o);
+    });
+    sel.value = cfg.PendingScanMappingId || '';
+  }
+
   function loadLibraries() {
     var sel = $('scanLibrary');
     if (!sel) { return; }
@@ -2146,6 +2180,7 @@ var LIB_TYPES = {
     }
 
     cfg.PendingScanLibraryId = $('scanLibrary').value;
+    cfg.PendingScanMappingId = $('scanMapping') ? $('scanMapping').value : '';
     saveConfig(cfg)
         .then(function () { return apiPost('ScheduledTasks/Running/' + task.Id); })
         .then(function () {
