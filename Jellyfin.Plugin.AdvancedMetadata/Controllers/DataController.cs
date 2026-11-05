@@ -157,10 +157,33 @@ public class DataController : ControllerBase
     {
         var lim = Math.Clamp(limit ?? 300, 1, 2000);
         var off = Math.Max(0, offset ?? 0);
-        var result = _store.BrowseItem(name ?? string.Empty, kind,
-                                       onlyOverrides: onlyOverrides == true,
-                                       sort: sort, desc: desc == true, letter: letter,
-                                       limit: lim, offset: off);
+        var found = _store.BrowseItem(name ?? string.Empty, kind, onlyOverrides == true,
+                                      sort, desc == true, letter, lim, off);
+
+        var wanted = found.Rows
+            .Select(v => v.Id)
+            .Distinct()
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var keep = found.Rows
+            .Where(v => v.Kind != "MusicArtist"
+                        || wanted.Contains(v.Id))
+            .ToList();
+        
+        var roots = found.Rows
+            .Where(v => v.Kind != "MusicArtist")
+            .Select(v => v.Album)
+            .Where(a => !string.IsNullOrWhiteSpace(a))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var rows = found.Rows
+            .Where(v => v.Kind != "MusicArtist"
+                        || (v.Album != null && roots.Contains(v.Album)))
+            .ToList();
+
+        var result = new BrowseResult(rows, rows.Count);
+
         return Ok(new
         {
             Total = result.Total,
