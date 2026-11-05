@@ -8,6 +8,7 @@ using System.Threading;
 using Jellyfin.Plugin.AdvancedMetadata.Configuration;
 using Jellyfin.Plugin.AdvancedMetadata.Store;
 using Jellyfin.Data.Enums;
+using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Model.Tasks;
 using Microsoft.AspNetCore.Authorization;
@@ -164,7 +165,7 @@ public class DataController : ControllerBase
         var found = _store.BrowseItem(name ?? string.Empty, kind, onlyOverrides == true,
                                       sort, desc == true, letter, lim, off);
 
-        var all = new List<Store.BrowseRow>(found.Rows);
+        var all = new List<BrowseRow>(found.Rows);
 
         // Pull in the albums these items belong to, then the artists of those albums.
         var albumIds = found.Rows
@@ -175,7 +176,7 @@ public class DataController : ControllerBase
 
         if (albumIds.Count > 0)
         {
-            var albums = _store.BrowseIds(albumIds, kind, onlyOverrides == true, sort, desc, 2000, 0).Rows;
+            var albums = _store.BrowseIds(albumIds, kind, onlyOverrides == true, sort, desc == true, 2000, 0).Rows;
             all.AddRange(albums);
 
             var artistNames = albums
@@ -200,7 +201,7 @@ public class DataController : ControllerBase
 
             if (artistIds.Count > 0)
             {
-                all.AddRange(_store.BrowseIds(artistIds, kind, onlyOverrides == true, sort, desc, 2000, 0).Rows);
+                all.AddRange(_store.BrowseIds(artistIds, kind, onlyOverrides == true, sort, desc == true, 2000, 0).Rows);
             }
         }
 
