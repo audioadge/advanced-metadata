@@ -338,14 +338,18 @@
       grouped by item and show every indexed value across all mappings and levels.</div>
     </div>
     <div class="am-actions">
-      <button id="btnDataItem" class="am-btn am-btn-primary">Search items</button>
+      <button id="btnDataItem" class="am-btn am-btn-primary">Content Search</button>
+      <button id="btnClearData" class="am-btn">Reset Search</button>
     </div>
 
     <div class="am-sep"></div>
 
-    <h3>Filter data by mapping</h3>
+    <h3>Search by mapping</h3>
+    <div class="am-hint" style="max-width:680px; margin-bottom:10px">
+      Select one or more mappings, and optionally narrow by content level and value.
+    </div>
     <div class="am-field">
-      <div class="am-label">Mapping</div>
+      <div class="am-label">Select mapping(s)</div>
       <select id="dataField" multiple size="6"><option value="">— All mappings —</option></select>
     </div>
 <div class="am-field">
@@ -362,7 +366,8 @@
       <input id="dataValue" type="text" placeholder="e.g. Tchaikovsky" autocomplete="off" />
     </div>
     <div class="am-actions">
-      <button id="btnDataField" class="am-btn am-btn-primary">Filter</button>
+      <button id="btnDataField" class="am-btn am-btn-primary">Mapping Search</button>
+      <button id="btnClearData" class="am-btn">Reset Search</button>
     </div>
 
     <div id="dataStatus" class="am-status"></div>
@@ -389,7 +394,7 @@
         </select>
       </label>
       <button id="dataDir" class="am-btn" title="Reverse the order">↑</button>
-      <button id="dataReset" class="am-btn">Reset Sort</button>
+      <a href="#" id="dataReset" class="am-hint" style="text-decoration:underline">Reset sort</a>
       <button id="btnBulkEdit" class="am-btn am-btn-primary" style="display:none">Edit selected (0)</button>
       <button id="btnBulkClear" class="am-btn" style="display:none">Cancel</button>
       <span class="am-letters" id="dataLetters"></span>
@@ -1224,6 +1229,8 @@ function renderManage() {
         o.textContent = (f.Display || f.Name);
         sel.appendChild(o);
       });
+
+      sel.size = Math.min(12, Math.max(4, (list || []).length + 1));
       sel.value = keep;
     }).catch(function () { /* ignore */ });
   }
@@ -1863,6 +1870,7 @@ function deleteValue(r) {
           if (!j.Ok) { setStatus('dataStatus', 'err', 'BULK EDIT FAILED: ' + (j.Message || 'unknown')); return; }
           bulkSelected = [];
           updateBulkCount();
+          redrawData();
           setStatus('dataStatus', 'ok', j.Applied + ' value(s) replaced.');
           loadData(false);
         })
