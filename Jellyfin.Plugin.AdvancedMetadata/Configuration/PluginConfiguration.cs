@@ -12,6 +12,8 @@ public class PluginConfiguration : BasePluginConfiguration
     public string ScanLibraryId { get; set; } = string.Empty;
     public string PendingScanLibraryId { get; set; } = string.Empty;
 
+    public string PendingScanMappingId { get; set; } = string.Empty;
+
     public DateTime? LastRestoreUtc { get; set; }
 
     public int LastRestoreItems { get; set; }
