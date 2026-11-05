@@ -1443,6 +1443,21 @@ function valueRow(v, showPath) {
       return rows.some(function (r) { return r.Kind === kd; });
     });
 
+    if (path.indexOf('Artist') > -1) {
+      var albumNames = {};
+      rows.forEach(function (r) {
+        if (r.Kind === 'MusicAlbum' && r.Item) { albumNames[r.Item] = 1; }
+      });
+
+      var artistKept = rows.some(function (r) {
+        return r.Kind === 'MusicArtist' && albumNames[r.Album || ''];
+      });
+
+      if (!artistKept) {
+        path = path.filter(function (lv) { return lv !== 'Artist'; });
+      }
+    }
+
     function deepestField() {
       return rows.length ? rows[0].Field : '';
     }
