@@ -1208,7 +1208,79 @@ COALESCE(i.parent_id,'') AS parent, COALESCE(i.disc,0) AS disc, COALESCE(i.track
         });
 
    
-       /// <summary>Rows for a specific set of item ids, used to pull ancestors in.</summary>
+       private List<string> BuildWhere(List<string> where, List<(string K, object V)> args,
+                                    string? field, string? query, string? kind,
+                                    bool onlyOverrides, string? letter)
+    {
+        var names = (field ?? string.Empty)
+            .Split(',', StringSplitOptions.RemoveEmptyEntries)
+            .Select(x => x.Trim().ToUpperInvariant())
+            .Where(x => x.Length > 0)
+            .ToArray();
+
+        if (names.Length == 1) { where.Add("field = $f"); args.Add(("$f", names[0])); }
+        else if (names.Length > 1)
+        {
+            var marks = new List<string>();
+            for (var i = 0; i < names.Length; i++) { marks.Add("$f" + i); args.Add(("$f" + i, names[i])); }
+            where.Add("field IN (" + string.Join(",", marks) + ")");
+        }
+
+        if (!string.IsNullOrWhiteSpace(query))
+        {
+            where.Add("(value LIKE $like OR artist LIKE $like OR item LIKE $like OR field LIKE $like)");
+            args.Add(("$like", "%" + query.Trim() + "%"));
+        }
+
+        if (!string.IsNullOrWhiteSpace(kind)) { where.Add("kind = $kind"); args.Add(("$kind", kind)); }
+        if (onlyOverrides) { where.Add("(isoverride = 1 OR isdeleted = 1)"); }
+        AddLetter(where, args, null, letter);
+
+        return where;
+    }
+
+    /// <summary>Distinct group keys for a column, so grouping pages by group not by row.</summary>
+    public List<string> BrowseGroups(string column, string? field, string? query, string? kind,
+                                     bool onlyOverrides, string? letter, bool desc, int limit, int offset)
+    {
+        var col = SortColumn(column);
+        var where = new List<string>();
+        var args = new List<(string K, object V)>();
+        BuildWhere(where, args, field, query, kind, onlyOverrides, letter);
+
+        using var c = NewConn();
+        using var cmd = c.CreateCommand();
+        cmd.CommandText = "SELECT DISTINCT " + col + " AS k FROM (" + UnionSql + ") x WHERE "
+            + (where.Count == 0 ? "1=1" : string.Join(" AND ", where))
+            + " ORDER BY k " + (desc ? "DESC" : "ASC") + " LIMIT $lim OFFSET $off;";
+
+        foreach (var (k, v) in args) { cmd.Parameters.AddWithValue(k, v); }
+        cmd.Parameters.AddWithValue("$lim", Math.Max(1, limit));
+        cmd.Parameters.AddWithValue("$off", Math.Max(0, offset));
+
+        var keys = new List<string>();
+        using var r = cmd.ExecuteReader();
+        while (r.Read()) { if (!r.IsDBNull(0)) { keys.Add(r.GetString(0)); } }
+        return keys;
+    }
+
+    /// <summary>Every row for one group key.</summary>
+    public List<BrowseRow> BrowseGroupRows(string column, string key, string? field, string? query,
+                                           string? kind, bool onlyOverrides, string? letter, int limit)
+    {
+        var col = SortColumn(column);
+        var where = new List<string>();
+        var args = new List<(string K, object V)>();
+        BuildWhere(where, args, field, query, kind, onlyOverrides, letter);
+
+        where.Add(col + " = $key");
+        args.Add(("$key", key));
+
+        using var c = NewConn();
+        return Run(c, string.Join(" AND ", where), args, column, false, Math.Max(1, limit), 0).Rows;
+    }
+
+    /// <summary>Rows for a specific set of item ids, used to pull ancestors in.</summary>
         public BrowseResult BrowseIds(IEnumerable<string> ids, string? kind = null, bool onlyOverrides = false,
                                       string? sort = null, bool desc = false, int limit = 2000, int offset = 0)
         {
