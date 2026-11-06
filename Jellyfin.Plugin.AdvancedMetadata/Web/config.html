@@ -178,7 +178,9 @@
         Tag name
       </div>
       <input id="newTag" type="text" placeholder="e.g. LABEL" autocomplete="off" />
-      <div class="am-hint">Must match the tag as exactly written in your files. Stored in upper case.</div>
+      <div class="am-hint">Must match the tag as exactly written in your files. Note: Jellyfin's own tags
+      also work but care must be taken: <span class="am-mono">ARTIST, ALBUMARTIST, ALBUM, TITLE, GENRE, COMPOSER, YEAR,
+      TRACKNUMBER, DISCNUMBER</span>.</div>
     </div>
 
     <div class="am-field">
@@ -942,6 +944,13 @@
 
   /* ---------------- create ---------------- */
 
+  var JELLYFIN_TAGS = ['ARTIST', 'ALBUMARTIST', 'ALBUM', 'TITLE', 'GENRE', 'COMPOSER',
+    'YEAR', 'TRACKNUMBER', 'DISCNUMBER'];
+
+  function isJellyfinTag(tag) {
+    return JELLYFIN_TAGS.indexOf((tag || '').trim().toUpperCase()) > -1;
+  }
+
   function duplicate(tag) {
     return (cfg.Mappings || []).some(function (m) {
       return (m.SourceTag || '').toUpperCase() === tag.toUpperCase();
@@ -953,10 +962,13 @@
       var tag = this.value.trim();
       if (!tag) { clearStatus('createStatus'); return; }
       if (duplicate(tag)) {
-        setStatus('createStatus', 'err', 'Mapping name ' + tag.toUpperCase() + ' already exists.');
-      } else {
-        setStatus('createStatus', 'ok', 'Mapping Available');
-      }
+      setStatus('createStatus', 'err', 'Mapping name ' + tag.toUpperCase() + ' already exists.');
+    } else if (isJellyfinTag(tag)) {
+      setStatus('createStatus', 'warn', 'Mapping Available — ' + tag.toUpperCase()
+        + ' is a Jellyfin tag, so this maps a core field rather than a custom one.');
+    } else {
+      setStatus('createStatus', 'ok', 'Mapping Available');
+    }
     });
 
   $('btnCreate').addEventListener('click', function () {
