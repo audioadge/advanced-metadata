@@ -1700,7 +1700,7 @@ function redrawData() {
     $('dataCount').textContent = dataRowsAll.length + ' row(s) shown of ' + dataRowsAll.length
         + (dataRowsAll.length >= pageSize ? ' — more available' : '');
     $('dataTable').classList.toggle('hidepath', !$('chkPaths').checked);
-    if ($('chkGrouped').checked) { renderGrouped(rows); }
+    if (groupPath) { renderGrouped(rows); }
     else { renderFlat(sortRows(rows)); }
     $('btnMore').style.display = (dataRowsAll.length >= (groupPath ? 3000 : PAGE_SIZE)) ? 'inline-block' : 'none';
   }
@@ -1931,6 +1931,7 @@ function deleteValue(r) {
    $('dataGroup').addEventListener('change', function () {
       groupPath = this.value;
       $('chkGrouped').checked = !!groupPath;
+      $('dataGroup').value = groupPath;
       if (groupPath) { sortKey = groupPath.split('>')[0]; sortAsc = true; }
       updateDir();
       dataOffset = 0;
