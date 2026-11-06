@@ -229,6 +229,31 @@ public class DataController : ControllerBase
         });
     }
 
+    [HttpGet("Groups")]
+    public ActionResult Groups([FromQuery] string? column, [FromQuery] string? field, [FromQuery] string? q,
+                               [FromQuery] string? kind, [FromQuery] bool? onlyOverrides,
+                               [FromQuery] string? letter, [FromQuery] bool? desc,
+                               [FromQuery] int? limit, [FromQuery] int? offset)
+        => Ok(_store.BrowseGroups(column ?? "artist", field, q, kind, onlyOverrides == true,
+                                  letter, desc == true, Math.Clamp(limit ?? 25, 1, 100), Math.Max(0, offset ?? 0)));
+
+    [HttpGet("GroupRows")]
+    public ActionResult GroupRows([FromQuery] string? column, [FromQuery] string? key, [FromQuery] string? field,
+                                  [FromQuery] string? q, [FromQuery] string? kind, [FromQuery] bool? onlyOverrides,
+                                  [FromQuery] string? letter, [FromQuery] int? limit)
+    {
+        if (string.IsNullOrWhiteSpace(key)) { return Ok(Array.Empty<object>()); }
+
+        var rows = _store.BrowseGroupRows(column ?? "artist", key, field, q, kind, onlyOverrides == true,
+                                          letter, Math.Clamp(limit ?? 400, 1, 1000));
+
+        return Ok(rows.Select(v => new
+        {
+            v.Id, v.Kind, v.Item, v.Artist, v.Album, v.Detail, v.Field, v.Value,
+            v.IsOverride, v.IsDeleted, v.OverrideOld, v.Added, v.Parent, v.Disc, v.Track
+        }));
+    }
+
     [HttpGet("Overrides")]
     public ActionResult Overrides()
         => Ok(_store.ListOverrides());
