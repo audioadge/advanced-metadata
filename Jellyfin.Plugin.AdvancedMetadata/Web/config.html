@@ -1206,7 +1206,7 @@ function renderManage() {
         scanOne.className = 'am-act';
         scanOne.textContent = 'Scan';
         scanOne.title = 'Re-read every item for this mapping only';
-        scanOne.style.marginLeft = '6px';
+        scanOne.style.marginRight = '6px';
         scanOne.addEventListener('click', function () {
           if (!task) { setStatus('manageStatus', 'err', 'Scan task not found.'); return; }
           cfg.PendingScanMappingId = m.Id;
@@ -1705,11 +1705,12 @@ function redrawData() {
     $('btnMore').style.display = (dataRowsAll.length >= (groupPath ? 3000 : PAGE_SIZE)) ? 'inline-block' : 'none';
   }
 
-var letterFilter = '';
+  var letterFilter = '';
   var groupPath = '';
 
   var bulkSelected = [];
   var pageSize = PAGE_SIZE;
+  var groupOffset = 0;
 
   function updateBulkCount() {
     var b = $('btnBulkEdit');
@@ -1761,7 +1762,37 @@ var letterFilter = '';
     }
     url += '&kind=' + encodeURIComponent($('dataKind').value);
     url += '&onlyOverrides=' + ($('chkOverrides').checked ? 'true' : 'false');
-    pageSize = groupPath ? 3000 : PAGE_SIZE;
+    if (groupPath) {
+      var col = groupPath.split('>')[0];
+      var q = '&field=' + encodeURIComponent(picked.join(','))
+            + '&q=' + encodeURIComponent($('dataValue').value.trim())
+            + '&letter=' + encodeURIComponent(letterFilter)
+            + '&desc=' + (sortAsc ? 'false' : 'true');
+
+      apiGet('AdvancedMetadataData/Groups?column=' + col + q
+             + '&offset=' + (append ? groupOffset : 0) + '&limit=20')
+        .then(function (keys) {
+          keys = keys || [];
+          groupOffset = (append ? groupOffset : 0) + keys.length;
+
+          return keys.reduce(function (chain, key) {
+            return chain.then(function (acc) {
+              return apiGet('AdvancedMetadataData/GroupRows?column=' + col + q
+                            + '&key=' + encodeURIComponent(key) + '&limit=400')
+                .then(function (rows) { return acc.concat(rows || []); });
+            });
+          }, Promise.resolve(append ? dataRowsAll : []));
+        })
+        .then(function (all) {
+          dataRowsAll = all;
+          dataOffset = dataRowsAll.length;
+          redrawData();
+          setStatus('dataStatus', 'info', dataRowsAll.length + ' row(s) loaded.');
+        })
+        .catch(function (e) { setStatus('dataStatus', 'err', 'Search failed: ' + e.message); });
+
+      return;
+    }
 
     url += '&sort=' + encodeURIComponent(sortKey.toLowerCase())
         + '&desc=' + (sortAsc ? 'false' : 'true')
@@ -1903,6 +1934,7 @@ function deleteValue(r) {
       if (groupPath) { sortKey = groupPath.split('>')[0]; sortAsc = true; }
       updateDir();
       dataOffset = 0;
+      groupOffset = 0;
       loadData(false);
     });
 
