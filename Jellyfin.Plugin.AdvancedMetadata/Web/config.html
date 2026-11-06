@@ -1751,15 +1751,15 @@ function redrawData() {
 
   function loadData(append) {
     var url;
+    var picked = Array.prototype.slice.call($('dataField').selectedOptions || [])
+      .map(function (o) { return o.value; })
+      .filter(function (v) { return v; });
+
     if (dataMode === 'item') {
       var n = $('dataItem').value.trim();
       if (!n) { setStatus('dataStatus', 'warn', 'Type part of a title first.'); return; }
       url = 'AdvancedMetadataData/Item?name=' + encodeURIComponent(n);
     } else {
-      var picked = Array.prototype.slice.call($('dataField').selectedOptions || [])
-        .map(function (o) { return o.value; })
-        .filter(function (v) { return v; });
-
       url = 'AdvancedMetadataData/Values?field=' + encodeURIComponent(picked.join(','))
           + '&q=' + encodeURIComponent($('dataValue').value.trim());
     }
