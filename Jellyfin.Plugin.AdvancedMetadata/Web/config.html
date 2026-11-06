@@ -1230,8 +1230,8 @@ function renderManage() {
             .catch(function (e) { setStatus('manageStatus', 'err', 'DELETE FAILED: ' + e.message); });
         });
 
-        tdA2.appendChild(edit);
         tdA2.appendChild(scanOne);
+        tdA2.appendChild(edit);
         tdA2.appendChild(del);
         tr.appendChild(tdA2);
       }
@@ -1697,6 +1697,7 @@ var letterFilter = '';
   var groupPath = '';
 
   var bulkSelected = [];
+  var pageSize = PAGE_SIZE;
 
   function updateBulkCount() {
     var b = $('btnBulkEdit');
@@ -1748,7 +1749,7 @@ var letterFilter = '';
     }
     url += '&kind=' + encodeURIComponent($('dataKind').value);
     url += '&onlyOverrides=' + ($('chkOverrides').checked ? 'true' : 'false');
-    var pageSize = groupPath ? 3000 : PAGE_SIZE;
+    pageSize = groupPath ? 3000 : PAGE_SIZE;
 
     url += '&sort=' + encodeURIComponent(sortKey.toLowerCase())
         + '&desc=' + (sortAsc ? 'false' : 'true')
