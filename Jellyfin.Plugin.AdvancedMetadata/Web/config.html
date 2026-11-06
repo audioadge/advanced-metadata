@@ -1697,12 +1697,14 @@ function valueRow(v, showPath) {
 function redrawData() {
     if (!Array.isArray(dataRowsAll)) { dataRowsAll = []; }
     var rows = applyFilter(dataRowsAll);
-    $('dataCount').textContent = dataRowsAll.length + ' row(s) shown of ' + dataRowsAll.length
-        + (dataRowsAll.length >= pageSize ? ' — more available' : '');
+    $('dataCount').textContent = dataRowsAll.length + ' row(s) shown'
+        + (dataTotal > dataRowsAll.length ? ' of ' + dataTotal + ' — use Show more for the rest' : '');
     $('dataTable').classList.toggle('hidepath', !$('chkPaths').checked);
     if (groupPath) { renderGrouped(rows); }
     else { renderFlat(sortRows(rows)); }
-    $('btnMore').style.display = (dataRowsAll.length >= (groupPath ? 3000 : PAGE_SIZE)) ? 'inline-block' : 'none';
+    if (!groupPath) {
+      $('btnMore').style.display = (dataRowsAll.length < dataTotal) ? 'inline-block' : 'none';
+    }
   }
 
   var letterFilter = '';
@@ -1711,6 +1713,7 @@ function redrawData() {
   var bulkSelected = [];
   var pageSize = PAGE_SIZE;
   var groupOffset = 0;
+  var lastGroupCount = 0;
 
   function updateBulkCount() {
     var b = $('btnBulkEdit');
@@ -1773,7 +1776,8 @@ function redrawData() {
              + '&offset=' + (append ? groupOffset : 0) + '&limit=20')
         .then(function (keys) {
           keys = keys || [];
-          groupOffset = (append ? groupOffset : 0) + keys.length;
+          lastGroupCount = keys.length;
+          groupOffset += keys.length;
 
           return keys.reduce(function (chain, key) {
             return chain.then(function (acc) {
@@ -1787,6 +1791,7 @@ function redrawData() {
           dataRowsAll = all;
           dataOffset = dataRowsAll.length;
           redrawData();
+          $('btnMore').style.display = (lastGroupCount >= 20) ? 'inline-block' : 'none';
           setStatus('dataStatus', 'info', dataRowsAll.length + ' row(s) loaded.');
         })
         .catch(function (e) { setStatus('dataStatus', 'err', 'Search failed: ' + e.message); });
