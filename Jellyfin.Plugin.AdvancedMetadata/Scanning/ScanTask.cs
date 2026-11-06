@@ -95,11 +95,7 @@ public class ScanTask : IScheduledTask
         cfg.LastScanErrors = 0;
         cfg.LastScanBackfill = 0;
         cfg.LastScanTotal = 0;
-        var mapped = mappingScoped && mappings.Count > 0 ? mappings[0].SourceTag : string.Empty;
-
-        cfg.LastScanType = (full ? "Full Scan" : "Incremental Scan")
-            + (scoped ? " — " + scopeName : string.Empty)
-            + (mapped.Length > 0 ? " — mapping " + mapped : string.Empty);
+        cfg.LastScanType = full ? "Full Scan" : "Incremental Scan";
         cfg.LastScanStatus = "Running";
         cfg.LastScanStage = "Starting";
         cfg.LastScanSummary = string.Empty;
@@ -144,6 +140,12 @@ public class ScanTask : IScheduledTask
             backfill.Clear();
             backfill.Add(mappings[0].SourceTag);
         }
+
+        cfg.LastScanType = (full ? "Full Scan" : "Incremental Scan")
+            + (scoped ? " — " + scopeName : string.Empty)
+            + (mappingScoped && mappings.Count > 0 ? " — mapping " + mappings[0].SourceTag : string.Empty);
+
+        plugin.UpdateConfiguration(cfg);
         cfg.LastScanBackfill = backfill.Count;
         plugin.UpdateConfiguration(cfg);
 
