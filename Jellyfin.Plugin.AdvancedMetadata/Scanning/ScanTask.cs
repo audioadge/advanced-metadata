@@ -95,8 +95,11 @@ public class ScanTask : IScheduledTask
         cfg.LastScanErrors = 0;
         cfg.LastScanBackfill = 0;
         cfg.LastScanTotal = 0;
+        var mapped = mappingScoped && mappings.Count > 0 ? mappings[0].SourceTag : string.Empty;
+
         cfg.LastScanType = (full ? "Full Scan" : "Incremental Scan")
-            + (scoped ? " — " + scopeName : string.Empty);
+            + (scoped ? " — " + scopeName : string.Empty)
+            + (mapped.Length > 0 ? " — mapping " + mapped : string.Empty);
         cfg.LastScanStatus = "Running";
         cfg.LastScanStage = "Starting";
         cfg.LastScanSummary = string.Empty;
