@@ -1248,6 +1248,20 @@ COALESCE(i.parent_id,'') AS parent, COALESCE(i.disc,0) AS disc, COALESCE(i.track
         var args = new List<(string K, object V)>();
         BuildWhere(where, args, field, query, kind, onlyOverrides, letter);
 
+        var kindForCol = (column ?? string.Empty).ToLowerInvariant() switch
+        {
+            "artist" => "MusicArtist",
+            "album" => "MusicAlbum",
+            "item" => "Audio",
+            _ => null
+        };
+
+        if (!string.IsNullOrWhiteSpace(kindForCol))
+        {
+            where.Add("kind = $gkind");
+            args.Add(("$gkind", kindForCol));
+        }
+
         using var c = NewConn();
         using var cmd = c.CreateCommand();
         cmd.CommandText = "SELECT DISTINCT " + col + " AS k FROM (" + UnionSql + ") x WHERE "
