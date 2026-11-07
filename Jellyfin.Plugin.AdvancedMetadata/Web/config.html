@@ -149,7 +149,7 @@
   #AdvancedMetadataConfigPage input[type="file"] { color: #c9d1d9; font-family: inherit; font-size: 14px; }
   @media (max-width: 760px) {
     .am-hide-sm { display: none; }
-    #AdvancedMetadataConfigPage { padding: 14px 12px 40px; }
+    #AdvancedMetadataConfigPage { padding: 14px 12px 110px; }
   }
   #manageRows input[type="text"], #manageRows select {
     width: 100%; box-sizing: border-box; background: #0a0d12; color: #e6edf3;
@@ -1789,6 +1789,7 @@ function redrawData() {
         })
         .then(function (all) {
           dataRowsAll = all;
+          dataTotal = dataRowsAll.length;
           dataOffset = dataRowsAll.length;
           redrawData();
           $('btnMore').style.display = (lastGroupCount >= 20) ? 'inline-block' : 'none';
@@ -1938,6 +1939,7 @@ function deleteValue(r) {
       $('chkGrouped').checked = !!groupPath;
       $('dataGroup').value = groupPath;
       if (groupPath) { sortKey = groupPath.split('>')[0]; sortAsc = true; }
+      $('chkPaths').disabled = !(!groupPath || groupPath.indexOf('Item') > -1);
       updateDir();
       dataOffset = 0;
       groupOffset = 0;
