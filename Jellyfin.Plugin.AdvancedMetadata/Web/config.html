@@ -388,24 +388,19 @@
     <div class="am-card" style="max-width:680px; border-left:4px solid #2f81f7">
       <strong>How grouping works</strong>
       <div class="am-hint" style="margin-top:6px">
-        A grouping only shows an entity where that entity has scanned values of its own. Grouping by
-        Artist › Album › Song shows a song only when the artist, the album and the song all carry
-        values for the mappings you selected. An untagged album therefore drops out of an
-        Artist › Album › Song view even if its tracks are tagged.
+        Grouped view follows each mapping's own hierarchy: Songs + Albums + Artists gives
+        Artist › Album › Song, Songs + Albums gives Album › Song, and so on. A level appears only
+        where that level carries values of its own for the mapping you selected, so an untagged
+        album drops out of a grouped view even if its tracks are tagged. If any selected mapping
+        reaches artist level, grouped view covers only the artist-level mappings and says so.
       </div>
     </div>
     
     <div class="am-sortbar">
-      <label>Group by
-        <select id="dataGroup">
-          <option value="">None — one row per value</option>
-          <option value="Item">Song</option>
-          <option value="Album">Album</option>
-          <option value="Album>Item">Album › Song</option>
-          <option value="Artist">Artist</option>
-          <option value="Artist>Album">Artist › Album</option>
-          <option value="Artist>Album>Item">Artist › Album › Song</option>
-          <option value="Artist>Item">Artist › Song</option>
+      <label>View
+        <select id="dataView">
+          <option value="flat">Flat — one row per value</option>
+          <option value="tree">Grouped — artist › album › song</option>
         </select>
       </label>
       <button id="dataDir" class="am-btn" title="Reverse the order">↑</button>
@@ -416,10 +411,6 @@
     </div>
 
     <div style="display:flex; gap:16px; align-items:center; flex-wrap:wrap; margin-top:12px">
-      <label class="am-checkrow" style="font-size:.9em">
-        <input id="chkGrouped" type="checkbox" />
-        <span>Display grouped results</span>
-      </label>
       <label class="am-checkrow" style="font-size:.9em">
         <input id="chkOverrides" type="checkbox" />
         <span>Only edited values</span>
@@ -1293,7 +1284,9 @@ function clearDataResults() {
     dataOffset = 0;
     dataTotal = 0;
     if ($('dataFilter')) { $('dataFilter').value = ''; }
-    if ($('chkGrouped')) { $('chkGrouped').checked = false; }
+    if ($('dataView')) { $('dataView').value = 'flat'; }
+    grouped = false;
+    chainsLoaded = 0;
     if ($('dataItem')) { $('dataItem').value = ''; }
     if ($('dataValue')) { $('dataValue').value = ''; }
     if ($('dataKind')) { $('dataKind').value = ''; }
@@ -1305,12 +1298,12 @@ function clearDataResults() {
     $('dataCount').textContent = '';
     $('btnMore').style.display = 'none';
     letterFilter = '';
-    groupPath = '';
+    grouped = false;
+    chainsLoaded = 0;
     sortAsc = true;
     bulkSelected = [];
     updateBulkCount();
-    if ($('dataGroup')) { $('dataGroup').value = ''; }
-    if ($('chkGrouped')) { $('chkGrouped').checked = false; }
+    if ($('dataView')) { $('dataView').value = 'flat'; }
     buildLetters();
     updateDir();
     clearStatus('dataStatus');
@@ -1480,36 +1473,95 @@ function valueRow(v, showPath) {
     return row;
   }
 
-  var LEVEL_KIND = { Artist: 'MusicArtist', Album: 'MusicAlbum', Item: 'Audio' };
+function treeHead(kindTag, name) {
+    var head = document.createElement('div');
+    head.className = 'am-itemhead';
+    var t = document.createElement('strong');
+    t.textContent = name || '—';
+    head.appendChild(t);
+    var meta = document.createElement('div');
+    meta.className = 'am-itemmeta';
+    var tag = document.createElement('span');
+    tag.className = 'am-kindtag';
+    tag.textContent = kindTag;
+    meta.appendChild(tag);
+    head.appendChild(meta);
+    return head;
+  }
 
-  function renderGrouped(rows) {
+  function renderTree(rows) {
     var wrap = $('dataGrouped');
     wrap.innerHTML = '';
     $('dataTable').style.display = 'none';
     $('dataEmpty').style.display = rows.length ? 'none' : 'block';
+    if (!rows.length) { return; }
 
-    var path = groupPath ? groupPath.split('>') : [];
     var showPaths = $('chkPaths').checked;
+    var chain = null, box = null, artistBlock = null, albumBlock = null, lastSong = null;
 
-   path = path.filter(function (lv) {
-      var kd = LEVEL_KIND[lv];
-      return rows.some(function (r) { return r.Kind === kd; });
-    });
-
-   if (path.indexOf('Artist') > -1) {
-      var fieldsBelow = {};
-      rows.forEach(function (r) {
-        if (r.Kind !== 'MusicArtist') { fieldsBelow[r.Field] = 1; }
-      });
-
-      var artistKept = rows.some(function (r) {
-        return r.Kind === 'MusicArtist' && fieldsBelow[r.Field];
-      });
-
-      if (!artistKept) {
-        path = path.filter(function (lv) { return lv !== 'Artist'; });
+    rows.forEach(function (r) {
+      if (r.Chain !== chain) {
+        chain = r.Chain;
+        box = document.createElement('div');
+        box.className = 'am-itemgroup';
+        wrap.appendChild(box);
+        artistBlock = null;
+        albumBlock = null;
+        lastSong = null;
       }
-    }
+
+      if (r.Kind === 'MusicArtist') {
+        if (!artistBlock) {
+          artistBlock = document.createElement('div');
+          artistBlock.appendChild(treeHead('Artist', r.Item));
+          box.appendChild(artistBlock);
+        }
+        artistBlock.appendChild(valueRow(r, showPaths));
+        return;
+      }
+
+      if (r.Kind === 'MusicAlbum') {
+        if (!albumBlock) {
+          albumBlock = document.createElement('div');
+          albumBlock.className = 'am-nest';
+          albumBlock.style.marginLeft = '14px';
+          albumBlock.appendChild(treeHead('Album', r.Item));
+          box.appendChild(albumBlock);
+        }
+        albumBlock.appendChild(valueRow(r, showPaths));
+        return;
+      }
+
+      var target = albumBlock || artistBlock || box;
+      var songId = (r.Item || '') + '\u0001' + (r.Detail || '');
+      if (songId !== lastSong) {
+        lastSong = songId;
+        var line = document.createElement('div');
+        line.className = 'am-itemhead';
+        line.style.marginTop = '10px';
+        var st = document.createElement('strong');
+        st.textContent = r.Item || '—';
+        line.appendChild(st);
+        var sm = document.createElement('div');
+        sm.className = 'am-itemmeta';
+        if (r.Track) {
+          var trk = document.createElement('span');
+          trk.className = 'am-artisttag';
+          trk.textContent = 'Track ' + r.Track + (r.Disc ? ' · Disc ' + r.Disc : '');
+          sm.appendChild(trk);
+        }
+        if (showPaths && r.Detail) {
+          var pth = document.createElement('span');
+          pth.className = 'am-artisttag am-mono';
+          pth.textContent = r.Detail;
+          sm.appendChild(pth);
+        }
+        line.appendChild(sm);
+        target.appendChild(line);
+      }
+      target.appendChild(valueRow(r, showPaths));
+    });
+  }
 
     function deepestField() {
       return rows.length ? rows[0].Field : '';
@@ -1697,18 +1749,28 @@ function valueRow(v, showPath) {
 function redrawData() {
     if (!Array.isArray(dataRowsAll)) { dataRowsAll = []; }
     var rows = applyFilter(dataRowsAll);
-    $('dataCount').textContent = dataRowsAll.length + ' row(s) shown'
-        + (dataTotal > dataRowsAll.length ? ' of ' + dataTotal + ' — use Show more for the rest' : '');
     $('dataTable').classList.toggle('hidepath', !$('chkPaths').checked);
-    if (groupPath) { renderGrouped(rows); }
-    else { renderFlat(sortRows(rows)); }
-    if (!groupPath) {
-      $('btnMore').style.display = (dataRowsAll.length < dataTotal) ? 'inline-block' : 'none';
+
+    if (grouped) {
+      $('dataCount').textContent = chainsLoaded + ' group(s) loaded'
+        + (dataTotal > chainsLoaded ? ' of ' + dataTotal : '')
+        + ' — ' + rows.length + ' row(s) shown'
+        + (dataTotal > chainsLoaded ? '. Use Show more for the rest.' : '.');
+      renderTree(rows);
+      $('btnMore').style.display = (chainsLoaded < dataTotal) ? 'inline-block' : 'none';
+      return;
     }
+
+    $('dataCount').textContent = rows.length + ' row(s) shown'
+      + (dataTotal > rows.length ? ' of ' + dataTotal + ' — use Show more for the rest' : '');
+    renderFlat(sortRows(rows));
+    $('btnMore').style.display = (dataRowsAll.length < dataTotal) ? 'inline-block' : 'none';
   }
 
   var letterFilter = '';
-  var groupPath = '';
+  var grouped = false;
+  var chainsLoaded = 0;
+  var TREE_PAGE = 40;
 
   var bulkSelected = [];
   var pageSize = PAGE_SIZE;
@@ -1750,60 +1812,55 @@ function redrawData() {
   }
 
   function loadData(append) {
-    var url;
     var picked = Array.prototype.slice.call($('dataField').selectedOptions || [])
       .map(function (o) { return o.value; })
       .filter(function (v) { return v; });
 
+    var name = '';
     if (dataMode === 'item') {
-      var n = $('dataItem').value.trim();
-      if (!n) { setStatus('dataStatus', 'warn', 'Type part of a title first.'); return; }
-      url = 'AdvancedMetadataData/Item?name=' + encodeURIComponent(n);
-    } else {
-      url = 'AdvancedMetadataData/Values?field=' + encodeURIComponent(picked.join(','))
-          + '&q=' + encodeURIComponent($('dataValue').value.trim());
+      name = $('dataItem').value.trim();
+      if (!name) { setStatus('dataStatus', 'warn', 'Type part of a title first.'); return; }
     }
-    url += '&kind=' + encodeURIComponent($('dataKind').value);
-    url += '&onlyOverrides=' + ($('chkOverrides').checked ? 'true' : 'false');
-    if (groupPath) {
-      var col = groupPath.split('>')[0];
-      var q = '&field=' + encodeURIComponent(picked.join(','))
-            + '&q=' + encodeURIComponent($('dataValue').value.trim())
-            + '&letter=' + encodeURIComponent(letterFilter)
-            + '&desc=' + (sortAsc ? 'false' : 'true');
 
-      apiGet('AdvancedMetadataData/Groups?column=' + col + q
-             + '&offset=' + (append ? groupOffset : 0) + '&limit=20')
-        .then(function (keys) {
-          keys = keys || [];
-          lastGroupCount = keys.length;
-          groupOffset += keys.length;
+    var base = 'field=' + encodeURIComponent(picked.join(','))
+      + '&q=' + encodeURIComponent(dataMode === 'item' ? '' : $('dataValue').value.trim())
+      + '&name=' + encodeURIComponent(name)
+      + '&kind=' + encodeURIComponent($('dataKind').value)
+      + '&onlyOverrides=' + ($('chkOverrides').checked ? 'true' : 'false')
+      + '&letter=' + encodeURIComponent(letterFilter)
+      + '&desc=' + (sortAsc ? 'false' : 'true');
 
-          return keys.reduce(function (chain, key) {
-            return chain.then(function (acc) {
-              return apiGet('AdvancedMetadataData/GroupRows?column=' + col + q
-                            + '&key=' + encodeURIComponent(key) + '&limit=400')
-                .then(function (rows) { return acc.concat(rows || []); });
-            });
-          }, Promise.resolve(append ? dataRowsAll : []));
-        })
-        .then(function (all) {
-          dataRowsAll = all;
-          dataTotal = dataRowsAll.length;
-          dataOffset = dataRowsAll.length;
+    if (grouped) {
+      apiGet('AdvancedMetadataData/Tree?' + base
+             + '&offset=' + (append ? dataOffset : 0) + '&limit=' + TREE_PAGE)
+        .then(function (res) {
+          var rows = (res && res.Rows) || [];
+          var groups = (res && res.Groups) || 0;
+
+          dataTotal = (res && res.Total) || 0;
+          dataRowsAll = append ? dataRowsAll.concat(rows) : rows;
+          chainsLoaded = append ? chainsLoaded + groups : groups;
+          dataOffset = append ? dataOffset + groups : groups;
+
+          if (res && res.Restricted) {
+            setStatus('dataStatus', 'info',
+              'Grouped view is limited to the mappings that reach artist level.');
+          } else {
+            clearStatus('dataStatus');
+          }
+
           redrawData();
-          $('btnMore').style.display = (lastGroupCount >= 20) ? 'inline-block' : 'none';
-          setStatus('dataStatus', 'info', dataRowsAll.length + ' row(s) loaded.');
         })
         .catch(function (e) { setStatus('dataStatus', 'err', 'Search failed: ' + e.message); });
 
       return;
     }
 
-    url += '&sort=' + encodeURIComponent(sortKey.toLowerCase())
-        + '&desc=' + (sortAsc ? 'false' : 'true')
-        + '&letter=' + encodeURIComponent(letterFilter)
-        + '&limit=' + pageSize + '&offset=' + (append ? dataOffset : 0);
+    var url = (dataMode === 'item'
+      ? 'AdvancedMetadataData/Item?name=' + encodeURIComponent(name)
+      : 'AdvancedMetadataData/Values?' + base)
+      + '&sort=' + encodeURIComponent(sortKey.toLowerCase())
+      + '&limit=' + pageSize + '&offset=' + (append ? dataOffset : 0);
 
     apiGet(url).then(function (res) {
       var rows = [];
@@ -1910,41 +1967,15 @@ function deleteValue(r) {
     $('dataValue').addEventListener('keydown', function (e) { if (e.key === 'Enter') { $('btnDataField').click(); } });
     $('btnMore').addEventListener('click', function () { loadData(true); });
     $('btnResetData').addEventListener('click', clearDataResults);
-    $('chkGrouped').addEventListener('change', function () {
-      if (this.checked && !groupPath) {
-        groupPath = 'Item';
-        $('dataGroup').value = 'Item';
-        sortKey = 'Item';
-        sortAsc = true;
-        updateDir();
-        dataOffset = 0;
-        loadData(false);
-        return;
-      }
-
-      if (!this.checked && groupPath) {
-        groupPath = '';
-        $('dataGroup').value = '';
-        dataOffset = 0;
-        loadData(false);
-        return;
-      }
-
-      redrawData();
-    });
-    buildLetters();
-
-   $('dataGroup').addEventListener('change', function () {
-      groupPath = this.value;
-      $('chkGrouped').checked = !!groupPath;
-      $('dataGroup').value = groupPath;
-      if (groupPath) { sortKey = groupPath.split('>')[0]; sortAsc = true; }
-      $('chkPaths').disabled = !(!groupPath || groupPath.indexOf('Item') > -1);
-      updateDir();
+   $('dataView').addEventListener('change', function () {
+      grouped = this.value === 'tree';
       dataOffset = 0;
-      groupOffset = 0;
+      chainsLoaded = 0;
+      dataRowsAll = [];
+      if (grouped) { sortKey = 'Artist'; sortAsc = true; updateDir(); }
       loadData(false);
     });
+    buildLetters();
 
     $('dataDir').addEventListener('click', function () {
       sortAsc = !sortAsc;
@@ -2002,12 +2033,12 @@ function deleteValue(r) {
     });
 
     $('dataReset').addEventListener('click', function () {
-      letterFilter = '';
-      groupPath = '';
+     letterFilter = '';
+      grouped = false;
+      chainsLoaded = 0;
       sortKey = 'Artist';
       sortAsc = true;
-      if ($('dataGroup')) { $('dataGroup').value = ''; }
-      if ($('chkGrouped')) { $('chkGrouped').checked = false; }
+      if ($('dataView')) { $('dataView').value = 'flat'; }
       if ($('chkOverrides')) { $('chkOverrides').checked = false; }
       if ($('chkPaths')) { $('chkPaths').checked = false; }
       buildLetters();
