@@ -788,7 +788,16 @@
         if (opts.body !== undefined) { o2.body = opts.body; }
         return apiFetch(path, o2, true);
       }
-      if (!r.ok) { throw new Error('HTTP ' + r.status + ' on ' + path); }
+      if (!r.ok) {
+        return r.text().then(function (t) {
+          var msg = 'HTTP ' + r.status + ' on ' + path;
+          try {
+            var j = JSON.parse(t);
+            if (j && j.Message) { msg = j.Message; }
+          } catch (e) { /* not json */ }
+          throw new Error(msg);
+        });
+      }
       return r;
     });
   }
