@@ -255,7 +255,7 @@ public class DataController : ControllerBase
 
         var effective = withArtists.Count > 0 ? withArtists : chosen;
 
-        TreePage result;
+        MetadataStore.TreePage result;
         try
         {
             result = _store.BrowseTree(string.Join(",", effective), q, name, kind,
