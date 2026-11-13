@@ -14,7 +14,7 @@ public record FieldRow(string Name, string Display, string Hierarchy, int Items,
 
 public record OverrideRow(string JellyfinId, string Field, string OldValue, string NewValue, string CreatedUtc);
 
-public record BrowseRow(string Id, string Kind, string Item, string Artist, string Album, string Detail, string Field, string Value, bool IsOverride, bool IsDeleted, string OverrideOld, string Added, string Parent, long Disc, long Track);
+public record BrowseRow(string Id, string Kind, string Item, string Artist, string Album, string Detail, string Field, string Value, bool IsOverride, bool IsDeleted, string OverrideOld, string Added, string Parent, long Disc, long Track, string Chain = "");
 
 public class MetadataStore
 {
@@ -1319,18 +1319,30 @@ COALESCE(i.parent_id,'') AS parent, COALESCE(i.disc,0) AS disc, COALESCE(i.track
         return Run(c, string.Join(" AND ", where), args, column, false, Math.Max(1, limit), 0).Rows;
     }
 
-    public record TreePage(List<BrowseRow> Rows, int Total);
+    public record TreePage(List<BrowseRow> Rows, int Total, int Groups);
     
         /// <summary>
         /// Rows carrying a full artist / album / song chain. A row appears only when its whole
         /// chain exists for the same field, so a level is never invented. Pages over chains.
         /// </summary>
-        public TreePage BrowseTree(string? field, string? query, string? kind, bool onlyOverrides,
-                                   string? letter, bool desc, int chainLimit, int chainOffset)
+       public TreePage BrowseTree(string? field, string? query, string? name, string? kind, bool onlyOverrides,
+                               string? letter, bool desc, int chainLimit, int chainOffset)
+    {
+        var where = new List<string>();
+        var args = new List<(string K, object V)>();
+        BuildWhere(where, args, field, query, kind, onlyOverrides, letter);
+
+        if (!string.IsNullOrWhiteSpace(name))
         {
-            var where = new List<string>();
-            var args = new List<(string K, object V)>();
-            BuildWhere(where, args, field, query, kind, onlyOverrides, letter);
+            var terms = name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(6).ToArray();
+            var parts = new List<string>();
+            for (var i = 0; i < terms.Length; i++)
+            {
+                parts.Add($"(item LIKE $n{i} OR artist LIKE $n{i} OR album LIKE $n{i} OR detail LIKE $n{i})");
+                args.Add(("$n" + i, "%" + terms[i] + "%"));
+            }
+            if (parts.Count > 0) { where.Add("(" + string.Join(" AND ", parts) + ")"); }
+        }
             var filter = where.Count == 0 ? "1=1" : string.Join(" AND ", where);
             var dir = desc ? "DESC" : "ASC";
     
@@ -1397,18 +1409,24 @@ COALESCE(i.parent_id,'') AS parent, COALESCE(i.disc,0) AS disc, COALESCE(i.track
                 cmd.Parameters.AddWithValue("$lim", Math.Max(1, chainLimit));
                 cmd.Parameters.AddWithValue("$off", Math.Max(0, chainOffset));
     
-                using var r = cmd.ExecuteReader();
-                while (r.Read())
-                {
-                    rows.Add(new BrowseRow(
-                        r.GetString(0), r.GetString(1), r.GetString(2), r.GetString(3), r.GetString(4),
-                        r.GetString(5), r.GetString(6), r.GetString(7),
-                        r.GetInt64(8) != 0, r.GetInt64(9) != 0, r.GetString(10), r.GetString(11),
-                        r.GetString(12), r.GetInt64(13), r.GetInt64(14)));
-                }
+        var groups = 0;
+            string? previousChain = null;
+
+            using var r = cmd.ExecuteReader();
+            while (r.Read())
+            {
+                var chainValue = r.GetString(17);
+                if (chainValue != previousChain) { groups++; previousChain = chainValue; }
+
+                rows.Add(new BrowseRow(
+                    r.GetString(0), r.GetString(1), r.GetString(2), r.GetString(3), r.GetString(4),
+                    r.GetString(5), r.GetString(6), r.GetString(7),
+                    r.GetInt64(8) != 0, r.GetInt64(9) != 0, r.GetString(10), r.GetString(11),
+                    r.GetString(12), r.GetInt64(13), r.GetInt64(14), chainValue));
             }
-    
-            return new TreePage(rows, (int)total);
+        }
+
+        return new TreePage(rows, (int)total, groups);
         }
     
     /// <summary>Rows for a specific set of item ids, used to pull ancestors in.</summary>
