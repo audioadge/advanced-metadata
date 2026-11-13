@@ -229,6 +229,47 @@ public class DataController : ControllerBase
         });
     }
 
+    [HttpGet("Tree")]
+    public ActionResult Tree([FromQuery] string? field, [FromQuery] string? q, [FromQuery] string? kind,
+                             [FromQuery] bool? onlyOverrides, [FromQuery] string? letter,
+                             [FromQuery] bool? desc, [FromQuery] int? limit, [FromQuery] int? offset)
+    {
+        var lim = Math.Clamp(limit ?? 50, 1, 200);
+        var off = Math.Max(0, offset ?? 0);
+
+        var chosen = (field ?? string.Empty)
+            .Split(',', StringSplitOptions.RemoveEmptyEntries)
+            .Select(x => x.Trim())
+            .Where(x => x.Length > 0)
+            .ToList();
+
+        var hier = _store.FieldHierarchies();
+
+        // If any chosen mapping reaches the artist level, grouped output covers only those
+        // mappings, so an artist level is never invented for a mapping without artist data.
+        var withArtists = chosen
+            .Where(f => hier.TryGetValue(f, out var h)
+                        && h.Contains("artist", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        var effective = withArtists.Count > 0 ? withArtists : chosen;
+
+        var result = _store.BrowseTree(string.Join(",", effective), q, kind,
+                                       onlyOverrides == true, letter, desc == true, lim, off);
+
+        return Ok(new
+        {
+            Total = result.Total,
+            Restricted = withArtists.Count > 0 && withArtists.Count < chosen.Count,
+            Fields = effective,
+            Rows = result.Rows.Select(v => new
+            {
+                v.Id, v.Kind, v.Item, v.Artist, v.Album, v.Detail, v.Field, v.Value,
+                v.IsOverride, v.IsDeleted, v.OverrideOld, v.Added, v.Parent, v.Disc, v.Track
+            })
+        });
+    }
+
     [HttpGet("Groups")]
     public ActionResult Groups([FromQuery] string? column, [FromQuery] string? field, [FromQuery] string? q,
                                [FromQuery] string? kind, [FromQuery] bool? onlyOverrides,
