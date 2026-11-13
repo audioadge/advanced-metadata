@@ -312,6 +312,8 @@ CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL);");
         AddColumn(c, "items", "seen_utc", "TEXT");
         AddColumn(c, "items", "disc", "INTEGER");
         AddColumn(c, "items", "track", "INTEGER");
+        AddColumn(c, "items", "artist_id", "TEXT");
+        try { Exec(c, "CREATE INDEX IF NOT EXISTS ix_items_artist ON items(artist_id);"); } catch { }
         try { Exec(c, "UPDATE items SET seen_utc = datetime('now') WHERE seen_utc IS NULL;"); } catch { }
 
         try
@@ -743,6 +745,17 @@ CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL);");
         }
     }
 
+    /// <summary>Records which artist an album belongs to, so the artist chain is an id join.</summary>
+    public void SetItemArtist(string jellyfinId, string artistId)
+        => Write(c =>
+        {
+            using var cmd = c.CreateCommand();
+            cmd.CommandText = "UPDATE items SET artist_id=$a WHERE jellyfin_id=$j;";
+            cmd.Parameters.AddWithValue("$a", artistId);
+            cmd.Parameters.AddWithValue("$j", jellyfinId);
+            cmd.ExecuteNonQuery();
+        });
+    
     /// <summary>Records which album a track belongs to, so album-level reverts can find its tracks.</summary>
     public void SetItemParent(string jellyfinId, string parentId)
         => Write(c =>
@@ -1278,6 +1291,18 @@ COALESCE(i.parent_id,'') AS parent, COALESCE(i.disc,0) AS disc, COALESCE(i.track
         return keys;
     }
 
+    /// <summary>Field name to hierarchy, for deciding which chain levels a mapping reaches.</summary>
+    public Dictionary<string, string> FieldHierarchies()
+        => Read(c =>
+        {
+            var d = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            using var cmd = c.CreateCommand();
+            cmd.CommandText = "SELECT name, hierarchy FROM fields;";
+            using var r = cmd.ExecuteReader();
+            while (r.Read()) { d[r.GetString(0)] = r.GetString(1); }
+            return d;
+        });
+
     /// <summary>Every row for one group key.</summary>
     public List<BrowseRow> BrowseGroupRows(string column, string key, string? field, string? query,
                                            string? kind, bool onlyOverrides, string? letter, int limit)
@@ -1294,6 +1319,98 @@ COALESCE(i.parent_id,'') AS parent, COALESCE(i.disc,0) AS disc, COALESCE(i.track
         return Run(c, string.Join(" AND ", where), args, column, false, Math.Max(1, limit), 0).Rows;
     }
 
+    public record TreePage(List<BrowseRow> Rows, int Total);
+    
+        /// <summary>
+        /// Rows carrying a full artist / album / song chain. A row appears only when its whole
+        /// chain exists for the same field, so a level is never invented. Pages over chains.
+        /// </summary>
+        public TreePage BrowseTree(string? field, string? query, string? kind, bool onlyOverrides,
+                                   string? letter, bool desc, int chainLimit, int chainOffset)
+        {
+            var where = new List<string>();
+            var args = new List<(string K, object V)>();
+            BuildWhere(where, args, field, query, kind, onlyOverrides, letter);
+            var filter = where.Count == 0 ? "1=1" : string.Join(" AND ", where);
+            var dir = desc ? "DESC" : "ASC";
+    
+            var prefix = "WITH raw AS (" + UnionSql + @"),
+    ann AS (
+      SELECT r.*, COALESCE(it.artist_id,'') AS aid, COALESCE(ff.hierarchy,'') AS hier
+      FROM raw r
+      LEFT JOIN items it ON it.jellyfin_id = r.id
+      LEFT JOIN fields ff ON ff.name = r.field
+      WHERE " + filter + @"
+    ),
+    keyed AS (
+      SELECT ann.*,
+        (CASE WHEN hier LIKE '%artist%' THEN aid ELSE '' END) || char(1) ||
+        (CASE WHEN hier LIKE '%album%'
+              THEN (CASE WHEN kind = 'Audio' THEN COALESCE(parent,'') ELSE id END)
+              ELSE '' END) AS chain,
+        (CASE WHEN hier LIKE '%artist%'
+              THEN COALESCE((SELECT i2.name FROM items i2 WHERE i2.jellyfin_id = ann.aid), artist, item)
+              ELSE '' END) AS artist_key,
+        (CASE WHEN hier LIKE '%album%'
+              THEN (CASE WHEN kind = 'MusicAlbum' THEN COALESCE(album, item) ELSE COALESCE(album,'') END)
+              ELSE '' END) AS album_key
+      FROM ann
+      WHERE (CASE kind
+        WHEN 'Audio' THEN
+          (hier NOT LIKE '%album%' OR EXISTS (SELECT 1 FROM vals v2 JOIN fields f2 ON f2.id = v2.field_id
+             WHERE v2.item_id = (SELECT id FROM items WHERE jellyfin_id = ann.parent) AND f2.name = ann.field))
+          AND
+          (hier NOT LIKE '%artist%' OR EXISTS (SELECT 1 FROM vals v3 JOIN fields f3 ON f3.id = v3.field_id
+             WHERE v3.item_id = (SELECT id FROM items WHERE jellyfin_id = ann.aid) AND f3.name = ann.field))
+        WHEN 'MusicAlbum' THEN
+          (hier NOT LIKE '%artist%' OR EXISTS (SELECT 1 FROM vals v4 JOIN fields f4 ON f4.id = v4.field_id
+             WHERE v4.item_id = (SELECT id FROM items WHERE jellyfin_id = ann.aid) AND f4.name = ann.field))
+        ELSE 1
+      END) = 1
+    )";
+    
+            using var c = NewConn();
+    
+            long total;
+            using (var cc = c.CreateCommand())
+            {
+                cc.CommandText = prefix + " SELECT COUNT(DISTINCT chain) FROM keyed;";
+                foreach (var (k, v) in args) { cc.Parameters.AddWithValue(k, v); }
+                total = Convert.ToInt64(cc.ExecuteScalar(), CultureInfo.InvariantCulture);
+            }
+    
+            var rows = new List<BrowseRow>();
+            using (var cmd = c.CreateCommand())
+            {
+                cmd.CommandText = prefix + @",
+    keys AS (
+      SELECT DISTINCT chain, artist_key, album_key FROM keyed
+      ORDER BY artist_key " + dir + ", album_key " + dir + ", chain " + dir + @"
+      LIMIT $lim OFFSET $off
+    )
+    SELECT k.* FROM keyed k JOIN keys ON keys.chain = k.chain
+    ORDER BY k.artist_key " + dir + ", k.album_key " + dir + ", k.chain " + dir + @",
+      CASE k.kind WHEN 'MusicArtist' THEN 0 WHEN 'MusicAlbum' THEN 1 ELSE 2 END,
+      k.disc, k.track, k.item, k.field, k.value;";
+    
+                foreach (var (k, v) in args) { cmd.Parameters.AddWithValue(k, v); }
+                cmd.Parameters.AddWithValue("$lim", Math.Max(1, chainLimit));
+                cmd.Parameters.AddWithValue("$off", Math.Max(0, chainOffset));
+    
+                using var r = cmd.ExecuteReader();
+                while (r.Read())
+                {
+                    rows.Add(new BrowseRow(
+                        r.GetString(0), r.GetString(1), r.GetString(2), r.GetString(3), r.GetString(4),
+                        r.GetString(5), r.GetString(6), r.GetString(7),
+                        r.GetInt64(8) != 0, r.GetInt64(9) != 0, r.GetString(10), r.GetString(11),
+                        r.GetString(12), r.GetInt64(13), r.GetInt64(14)));
+                }
+            }
+    
+            return new TreePage(rows, (int)total);
+        }
+    
     /// <summary>Rows for a specific set of item ids, used to pull ancestors in.</summary>
         public BrowseResult BrowseIds(IEnumerable<string> ids, string? kind = null, bool onlyOverrides = false,
                                       string? sort = null, bool desc = false, int limit = 2000, int offset = 0)
