@@ -1395,38 +1395,41 @@ COALESCE(i.parent_id,'') AS parent, COALESCE(i.disc,0) AS disc, COALESCE(i.track
             }
     
             var rows = new List<BrowseRow>();
+            var groups = 0;
+            string? previousChain = null;
+
             using (var cmd = c.CreateCommand())
             {
                 cmd.CommandText = prefix + @",
-    keys AS (
-      SELECT DISTINCT chain, artist_key, album_key FROM keyed
-      ORDER BY artist_key " + dir + ", album_key " + dir + ", chain " + dir + @"
-      LIMIT $lim OFFSET $off
-    )
-    SELECT k.* FROM keyed k JOIN keys ON keys.chain = k.chain
-    ORDER BY k.artist_key " + dir + ", k.album_key " + dir + ", k.chain " + dir + @",
-      CASE k.kind WHEN 'MusicArtist' THEN 0 WHEN 'MusicAlbum' THEN 1 ELSE 2 END,
-      k.disc, k.track, k.item, k.field, k.value;";
-    
+keys AS (
+  SELECT DISTINCT chain, artist_key, album_key FROM keyed
+  ORDER BY artist_key " + dir + ", album_key " + dir + ", chain " + dir + @"
+  LIMIT $lim OFFSET $off
+)
+SELECT k.* FROM keyed k JOIN keys ON keys.chain = k.chain
+ORDER BY k.artist_key " + dir + ", k.album_key " + dir + ", k.chain " + dir + @",
+  CASE k.kind WHEN 'MusicArtist' THEN 0 WHEN 'MusicAlbum' THEN 1 ELSE 2 END,
+  k.disc, k.track, k.item, k.field, k.value;";
+
                 foreach (var (k, v) in args) { cmd.Parameters.AddWithValue(k, v); }
                 cmd.Parameters.AddWithValue("$lim", Math.Max(1, chainLimit));
                 cmd.Parameters.AddWithValue("$off", Math.Max(0, chainOffset));
 
-            using var r = cmd.ExecuteReader();
-            while (r.Read())
-            {
-                var chainValue = r.GetString(17);
-                if (chainValue != previousChain) { groups++; previousChain = chainValue; }
+                using var r = cmd.ExecuteReader();
+                while (r.Read())
+                {
+                    var chainValue = r.GetString(17);
+                    if (chainValue != previousChain) { groups++; previousChain = chainValue; }
 
-                rows.Add(new BrowseRow(
-                    r.GetString(0), r.GetString(1), r.GetString(2), r.GetString(3), r.GetString(4),
-                    r.GetString(5), r.GetString(6), r.GetString(7),
-                    r.GetInt64(8) != 0, r.GetInt64(9) != 0, r.GetString(10), r.GetString(11),
-                    r.GetString(12), r.GetInt64(13), r.GetInt64(14), chainValue));
+                    rows.Add(new BrowseRow(
+                        r.GetString(0), r.GetString(1), r.GetString(2), r.GetString(3), r.GetString(4),
+                        r.GetString(5), r.GetString(6), r.GetString(7),
+                        r.GetInt64(8) != 0, r.GetInt64(9) != 0, r.GetString(10), r.GetString(11),
+                        r.GetString(12), r.GetInt64(13), r.GetInt64(14), chainValue));
+                }
             }
-        }
 
-        return new TreePage(rows, (int)total, groups);
+            return new TreePage(rows, (int)total, groups);
         }
     
     /// <summary>Rows for a specific set of item ids, used to pull ancestors in.</summary>
