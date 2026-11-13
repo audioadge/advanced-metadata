@@ -255,8 +255,16 @@ public class DataController : ControllerBase
 
         var effective = withArtists.Count > 0 ? withArtists : chosen;
 
-        var result = _store.BrowseTree(string.Join(",", effective), q, name, kind,
+        TreePage result;
+        try
+        {
+            result = _store.BrowseTree(string.Join(",", effective), q, name, kind,
                                        onlyOverrides == true, letter, desc == true, lim, off);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { Message = ex.Message, Stack = ex.StackTrace, Field = string.Join(",", effective) });
+        }
 
         return Ok(new
         {
