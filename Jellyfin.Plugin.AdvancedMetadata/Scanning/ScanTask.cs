@@ -325,6 +325,17 @@ public class ScanTask : IScheduledTask
                         albumId = FindByName(album, BaseItemKind.MusicAlbum)?.Id;
                     }
 
+                    var albumArtistLinks = new List<(Guid Id, string? Name)>(GetAlbumArtists(item));
+                    if (albumArtistLinks.Count == 0)
+                    {
+                        foreach (var nm in (albumArtist ?? string.Empty).Split('/', StringSplitOptions.RemoveEmptyEntries))
+                        {
+                            var trimmed = nm.Trim();
+                            if (trimmed.Length == 0) { continue; }
+                            albumArtistLinks.Add((FindByName(trimmed, BaseItemKind.MusicArtist)?.Id ?? Guid.Empty, trimmed));
+                        }
+                    }
+
                     long itemId;
                     try
                     {
@@ -375,6 +386,8 @@ public class ScanTask : IScheduledTask
                                 var albumName = album ?? item.Name ?? "Unknown album";
                                 var albumBy = albumArtist ?? artist ?? albumName;
                                 var tid = _store.UpsertItem(aid, "MusicAlbum", albumName, albumBy, albumName, null, 0, 0);
+                                var link = albumArtistLinks.FirstOrDefault();
+                                if (!string.IsNullOrWhiteSpace(link.Name)) { _store.SetItemArtist(aid, ArtistItemId(link)); }
                                         Interlocked.Increment(ref rolled);
                                 _store.AddValues(tid, m.SourceTag, vals);
                                 _store.ApplyOverrides(aid, m.SourceTag);
@@ -398,9 +411,7 @@ public class ScanTask : IScheduledTask
                                 foreach (var a in names)
                                 {
                                     var an = string.IsNullOrWhiteSpace(a.Name) ? (artist ?? "Unknown artist") : a.Name;
-                                    var aid = a.Id != Guid.Empty
-                                        ? a.Id.ToString("N")
-                                        : "artist-" + an.ToLowerInvariant().Replace(' ', '-');
+                                    var aid = ArtistItemId(a);
                                     var tid = _store.UpsertItem(aid, "MusicArtist", an, an, null, null, 0, 0);
                                     _store.AddValues(tid, m.SourceTag, vals);
                                     _store.ApplyOverrides(aid, m.SourceTag);
@@ -539,6 +550,29 @@ public class ScanTask : IScheduledTask
         }
 
         return null;
+    }
+
+    private static string ArtistItemId((Guid Id, string? Name) a)
+        => a.Id != Guid.Empty
+            ? a.Id.ToString("N")
+            : "artist-" + (a.Name ?? "unknown").ToLowerInvariant().Replace(' ', '-');
+
+    private static IEnumerable<(Guid Id, string? Name)> GetAlbumArtists(BaseItem item)
+    {
+        var p = item.GetType().GetProperty("AlbumArtists");
+        if (p?.GetValue(item) is System.Collections.IEnumerable list)
+        {
+            foreach (var entry in list)
+            {
+                if (entry is null) { continue; }
+                var idProp = entry.GetType().GetProperty("Id");
+                var nameProp = entry.GetType().GetProperty("Name");
+                if (idProp?.GetValue(entry) is Guid g && g != Guid.Empty)
+                {
+                    yield return (g, nameProp?.GetValue(entry) as string);
+                }
+            }
+        }
     }
 
     private static IEnumerable<(Guid Id, string? Name)> GetArtists(BaseItem item)
