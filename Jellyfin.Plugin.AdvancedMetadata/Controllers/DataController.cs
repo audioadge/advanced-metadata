@@ -230,7 +230,8 @@ public class DataController : ControllerBase
     }
 
     [HttpGet("Tree")]
-    public ActionResult Tree([FromQuery] string? field, [FromQuery] string? q, [FromQuery] string? kind,
+    public ActionResult Tree([FromQuery] string? field, [FromQuery] string? q, [FromQuery] string? name,
+                             [FromQuery] string? kind,
                              [FromQuery] bool? onlyOverrides, [FromQuery] string? letter,
                              [FromQuery] bool? desc, [FromQuery] int? limit, [FromQuery] int? offset)
     {
@@ -254,18 +255,19 @@ public class DataController : ControllerBase
 
         var effective = withArtists.Count > 0 ? withArtists : chosen;
 
-        var result = _store.BrowseTree(string.Join(",", effective), q, kind,
+        var result = _store.BrowseTree(string.Join(",", effective), q, name, kind,
                                        onlyOverrides == true, letter, desc == true, lim, off);
 
         return Ok(new
         {
             Total = result.Total,
+            Groups = result.Groups,
             Restricted = withArtists.Count > 0 && withArtists.Count < chosen.Count,
             Fields = effective,
             Rows = result.Rows.Select(v => new
             {
                 v.Id, v.Kind, v.Item, v.Artist, v.Album, v.Detail, v.Field, v.Value,
-                v.IsOverride, v.IsDeleted, v.OverrideOld, v.Added, v.Parent, v.Disc, v.Track
+                v.IsOverride, v.IsDeleted, v.OverrideOld, v.Added, v.Parent, v.Disc, v.Track, v.Chain
             })
         });
     }
