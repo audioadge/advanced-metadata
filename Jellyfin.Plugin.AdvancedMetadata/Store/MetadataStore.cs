@@ -1335,6 +1335,29 @@ COALESCE(i.parent_id,'') AS parent, COALESCE(i.disc,0) AS disc, COALESCE(i.track
         var args = new List<(string K, object V)>();
         BuildWhere(where, args, field, query, kind, onlyOverrides, letter);
 
+        if (string.IsNullOrWhiteSpace(field))
+        {
+            var all = new List<string>();
+            var marks = new List<string>();
+            using (var fc = NewConn())
+            using (var fcmd = fc.CreateCommand())
+            {
+                fcmd.CommandText = "SELECT name FROM fields ORDER BY name;";
+                using var fr = fcmd.ExecuteReader();
+                while (fr.Read()) { all.Add(fr.GetString(0)); }
+            }
+
+            for (var i = 0; i < all.Count; i++)
+            {
+                marks.Add("$af" + i);
+                args.Add(("$af" + i, all[i]));
+            }
+
+            if (marks.Count > 0) { where.Add("field IN (" + string.Join(",", marks) + ")"); }
+            else { where.Add("1=0"); }
+        }
+
+           
         if (!string.IsNullOrWhiteSpace(name))
         {
             var terms = name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(6).ToArray();
