@@ -1145,8 +1145,11 @@ COALESCE(i.parent_id,'') AS parent, COALESCE(i.disc,0) AS disc, COALESCE(i.track
             total = Convert.ToInt64(cc.ExecuteScalar(), CultureInfo.InvariantCulture);
         }
 
-        var rows = new List<BrowseRow>();
-        using (var cmd = c.CreateCommand())
+       var rows = new List<BrowseRow>();
+            var groups = 0;
+            string? previousChain = null;
+
+            using (var cmd = c.CreateCommand())
         {
           cmd.CommandText = "SELECT DISTINCT * FROM (" + UnionSql + ") x WHERE " + where +
                               " ORDER BY " + SortColumn(sort) + (desc ? " DESC" : " ASC") +
@@ -1408,9 +1411,6 @@ COALESCE(i.parent_id,'') AS parent, COALESCE(i.disc,0) AS disc, COALESCE(i.track
                 foreach (var (k, v) in args) { cmd.Parameters.AddWithValue(k, v); }
                 cmd.Parameters.AddWithValue("$lim", Math.Max(1, chainLimit));
                 cmd.Parameters.AddWithValue("$off", Math.Max(0, chainOffset));
-    
-        var groups = 0;
-            string? previousChain = null;
 
             using var r = cmd.ExecuteReader();
             while (r.Read())
