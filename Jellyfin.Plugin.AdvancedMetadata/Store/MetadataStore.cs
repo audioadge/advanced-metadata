@@ -1146,9 +1146,7 @@ COALESCE(i.parent_id,'') AS parent, COALESCE(i.disc,0) AS disc, COALESCE(i.track
         }
 
        var rows = new List<BrowseRow>();
-            var groups = 0;
-            string? previousChain = null;
-
+            
             using (var cmd = c.CreateCommand())
         {
           cmd.CommandText = "SELECT DISTINCT * FROM (" + UnionSql + ") x WHERE " + where +
