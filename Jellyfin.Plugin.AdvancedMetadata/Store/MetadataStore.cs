@@ -1352,12 +1352,12 @@ COALESCE(i.parent_id,'') AS parent, COALESCE(i.disc,0) AS disc, COALESCE(i.track
         var hB = wantAlbum ? "(hier LIKE '%album%')" : "0";
         var hC = wantItem ? "1" : "0";
 
-        var needAlbum = wantAlbum
-            ? "EXISTS (SELECT 1 FROM vals v2 JOIN fields f2 ON f2.id = v2.field_id WHERE v2.item_id = (SELECT id FROM items WHERE jellyfin_id = ann.parent) AND f2.name = ann.field)"
+       var needAlbum = wantAlbum
+            ? "EXISTS (SELECT 1 FROM vals v2 WHERE v2.item_id = (SELECT id FROM items WHERE jellyfin_id = ann.parent) AND v2.field_id = ann.fid)"
             : "1";
 
         var needArtist = wantArtist
-            ? "EXISTS (SELECT 1 FROM vals v3 JOIN fields f3 ON f3.id = v3.field_id WHERE v3.item_id = (SELECT id FROM items WHERE jellyfin_id = ann.aid) AND f3.name = ann.field)"
+            ? "EXISTS (SELECT 1 FROM vals v3 WHERE v3.item_id = (SELECT id FROM items WHERE jellyfin_id = ann.aid) AND v3.field_id = ann.fid)"
             : "1";
 
         if (string.IsNullOrWhiteSpace(field))
@@ -1400,8 +1400,11 @@ COALESCE(i.parent_id,'') AS parent, COALESCE(i.disc,0) AS disc, COALESCE(i.track
             var prefix = "WITH raw AS (" + UnionSql + @"),
                 ann AS (
                   SELECT r.*,
-                    COALESCE((SELECT i0.artist_id FROM items i0 WHERE i0.jellyfin_id = r.id), '') AS aid,
-                    COALESCE((SELECT f0.hierarchy FROM fields f0 WHERE f0.name = r.field), '') AS hier
+                    COALESCE(NULLIF((SELECT i0.artist_id FROM items i0 WHERE i0.jellyfin_id = r.id), ''),
+                             NULLIF((SELECT i1.artist_id FROM items i1 WHERE i1.jellyfin_id = r.parent), ''),
+                             '') AS aid,
+                    COALESCE((SELECT f0.id FROM fields f0 WHERE f0.name = r.field), 0) AS fid,
+                    COALESCE((SELECT f1.hierarchy FROM fields f1 WHERE f1.name = r.field), '') AS hier
                   FROM raw r
                   WHERE " + filter + @"
                 ),
@@ -1431,7 +1434,7 @@ COALESCE(i.parent_id,'') AS parent, COALESCE(i.disc,0) AS disc, COALESCE(i.track
             long total;
             using (var cc = c.CreateCommand())
             {
-                cc.CommandText = prefix + " SELECT COUNT(DISTINCT chain) FROM shaped;";
+                cc.CommandText = prefix + " SELECT COUNT(*) FROM shaped;";
                 foreach (var (k, v) in args) { cc.Parameters.AddWithValue(k, v); }
                 total = Convert.ToInt64(cc.ExecuteScalar(), CultureInfo.InvariantCulture);
             }
@@ -1442,17 +1445,12 @@ COALESCE(i.parent_id,'') AS parent, COALESCE(i.disc,0) AS disc, COALESCE(i.track
 
             using (var cmd = c.CreateCommand())
             {
-                cmd.CommandText = prefix + @",
-        keys AS (
-          SELECT chain, MIN(a_name) AS a_name, MIN(b_name) AS b_name, MIN(c_name) AS c_name
-          FROM shaped GROUP BY chain
-          ORDER BY a_name " + dir + ", b_name " + dir + ", c_name " + dir + ", chain " + dir + @"
-          LIMIT $lim OFFSET $off
-        )
-        SELECT s.* FROM shaped s JOIN keys ON keys.chain = s.chain
-        ORDER BY keys.a_name " + dir + ", keys.b_name " + dir + ", keys.c_name " + dir + ", s.chain " + dir + @",
-          CASE s.kind WHEN 'MusicArtist' THEN 0 WHEN 'MusicAlbum' THEN 1 ELSE 2 END,
-          s.disc, s.track, s.c_name, s.field, s.value;";
+                cmd.CommandText = prefix + @"
+                    SELECT * FROM shaped
+                    ORDER BY a_name " + dir + ", b_name " + dir + ", c_name " + dir + ", chain " + dir + @",
+                      CASE kind WHEN 'MusicArtist' THEN 0 WHEN 'MusicAlbum' THEN 1 ELSE 2 END,
+                      disc, track, item, field, value
+                    LIMIT $lim OFFSET $off;";
 
                 foreach (var (k, v) in args) { cmd.Parameters.AddWithValue(k, v); }
                 cmd.Parameters.AddWithValue("$lim", Math.Max(1, chainLimit));
@@ -1461,10 +1459,10 @@ COALESCE(i.parent_id,'') AS parent, COALESCE(i.disc,0) AS disc, COALESCE(i.track
                 using var r = cmd.ExecuteReader();
                 while (r.Read())
                 {
-                    var aKey = r.GetString(17);
-                    var bKey = r.GetString(18);
-                    var cKey = r.GetString(19);
-                    var chainValue = r.GetString(23);
+                    var aKey = r.GetString(18);
+                    var bKey = r.GetString(19);
+                    var cKey = r.GetString(20);
+                    var chainValue = r.GetString(24);
                     if (chainValue != previousChain) { groups++; previousChain = chainValue; }
 
                     rows.Add(new BrowseRow(
