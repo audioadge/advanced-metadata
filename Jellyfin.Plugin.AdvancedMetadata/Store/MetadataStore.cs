@@ -14,7 +14,7 @@ public record FieldRow(string Name, string Display, string Hierarchy, int Items,
 
 public record OverrideRow(string JellyfinId, string Field, string OldValue, string NewValue, string CreatedUtc);
 
-public record BrowseRow(string Id, string Kind, string Item, string Artist, string Album, string Detail, string Field, string Value, bool IsOverride, bool IsDeleted, string OverrideOld, string Added, string Parent, long Disc, long Track, string Chain = "");
+public record BrowseRow(string Id, string Kind, string Item, string Artist, string Album, string Detail, string Field, string Value, bool IsOverride, bool IsDeleted, string OverrideOld, string Added, string Parent, long Disc, long Track, string Chain = "", string ArtistKey = "", string AlbumKey = "", string ItemKey = "");
 
 public class MetadataStore
 {
@@ -1328,12 +1328,39 @@ COALESCE(i.parent_id,'') AS parent, COALESCE(i.disc,0) AS disc, COALESCE(i.track
         /// Rows carrying a full artist / album / song chain. A row appears only when its whole
         /// chain exists for the same field, so a level is never invented. Pages over chains.
         /// </summary>
-       public TreePage BrowseTree(string? field, string? query, string? name, string? kind, bool onlyOverrides,
-                               string? letter, bool desc, int chainLimit, int chainOffset)
+       public TreePage BrowseTree(string? field, string? query, string? name, string? path, string? kind,
+                               bool onlyOverrides, string? letter, bool desc, int chainLimit, int chainOffset)
     {
         var where = new List<string>();
         var args = new List<(string K, object V)>();
         BuildWhere(where, args, field, query, kind, onlyOverrides, letter);
+
+        var p = path ?? string.Empty;
+        var wantArtist = p.Contains("Artist", StringComparison.OrdinalIgnoreCase);
+        var wantAlbum = p.Contains("Album", StringComparison.OrdinalIgnoreCase);
+        var wantItem = p.Contains("Item", StringComparison.OrdinalIgnoreCase);
+        if (!wantArtist && !wantAlbum && !wantItem) { wantAlbum = true; wantItem = true; }
+
+        var kinds = new List<string>();
+        if (wantArtist) { kinds.Add("MusicArtist"); }
+        if (wantAlbum) { kinds.Add("MusicAlbum"); }
+        if (wantItem) { kinds.Add("Audio"); }
+
+        var kindMarks = new List<string>();
+        for (var ki = 0; ki < kinds.Count; ki++) { kindMarks.Add("$pk" + ki); args.Add(("$pk" + ki, kinds[ki])); }
+        where.Add("kind IN (" + string.Join(",", kindMarks) + ")");
+
+        var hA = wantArtist ? "(hier LIKE '%artist%')" : "0";
+        var hB = wantAlbum ? "(hier LIKE '%album%')" : "0";
+        var hC = wantItem ? "1" : "0";
+
+        var needAlbum = wantAlbum
+            ? "EXISTS (SELECT 1 FROM vals v2 JOIN fields f2 ON f2.id = v2.field_id WHERE v2.item_id = (SELECT id FROM items WHERE jellyfin_id = ann.parent) AND f2.name = ann.field)"
+            : "1";
+
+        var needArtist = wantArtist
+            ? "EXISTS (SELECT 1 FROM vals v3 JOIN fields f3 ON f3.id = v3.field_id WHERE v3.item_id = (SELECT id FROM items WHERE jellyfin_id = ann.aid) AND f3.name = ann.field)"
+            : "1";
 
         if (string.IsNullOrWhiteSpace(field))
         {
@@ -1373,46 +1400,40 @@ COALESCE(i.parent_id,'') AS parent, COALESCE(i.disc,0) AS disc, COALESCE(i.track
             var dir = desc ? "DESC" : "ASC";
     
             var prefix = "WITH raw AS (" + UnionSql + @"),
-    ann AS (
-      SELECT r.*, COALESCE(it.artist_id,'') AS aid, COALESCE(ff.hierarchy,'') AS hier
-      FROM raw r
-      LEFT JOIN items it ON it.jellyfin_id = r.id
-      LEFT JOIN fields ff ON ff.name = r.field
-      WHERE " + filter + @"
-    ),
-    keyed AS (
-      SELECT ann.*,
-        (CASE WHEN hier LIKE '%artist%' THEN aid ELSE '' END) || char(1) ||
-        (CASE WHEN hier LIKE '%album%'
-              THEN (CASE WHEN kind = 'Audio' THEN COALESCE(parent,'') ELSE id END)
-              ELSE '' END) AS chain,
-        (CASE WHEN hier LIKE '%artist%'
-              THEN COALESCE((SELECT i2.name FROM items i2 WHERE i2.jellyfin_id = ann.aid), artist, item)
-              ELSE '' END) AS artist_key,
-        (CASE WHEN hier LIKE '%album%'
-              THEN (CASE WHEN kind = 'MusicAlbum' THEN COALESCE(album, item) ELSE COALESCE(album,'') END)
-              ELSE '' END) AS album_key
-      FROM ann
-      WHERE (CASE kind
-        WHEN 'Audio' THEN
-          (hier NOT LIKE '%album%' OR EXISTS (SELECT 1 FROM vals v2 JOIN fields f2 ON f2.id = v2.field_id
-             WHERE v2.item_id = (SELECT id FROM items WHERE jellyfin_id = ann.parent) AND f2.name = ann.field))
-          AND
-          (hier NOT LIKE '%artist%' OR EXISTS (SELECT 1 FROM vals v3 JOIN fields f3 ON f3.id = v3.field_id
-             WHERE v3.item_id = (SELECT id FROM items WHERE jellyfin_id = ann.aid) AND f3.name = ann.field))
-        WHEN 'MusicAlbum' THEN
-          (hier NOT LIKE '%artist%' OR EXISTS (SELECT 1 FROM vals v4 JOIN fields f4 ON f4.id = v4.field_id
-             WHERE v4.item_id = (SELECT id FROM items WHERE jellyfin_id = ann.aid) AND f4.name = ann.field))
-        ELSE 1
-      END) = 1
-    )";
+                ann AS (
+                  SELECT r.*, COALESCE(it.artist_id,'') AS aid, COALESCE(ff.hierarchy,'') AS hier
+                  FROM raw r
+                  LEFT JOIN items it ON it.jellyfin_id = r.id
+                  LEFT JOIN fields ff ON ff.name = r.field
+                  WHERE " + filter + @"
+                ),
+                keyed AS (
+                  SELECT ann.*,
+                    (CASE WHEN " + hA + @" THEN (CASE WHEN kind = 'MusicArtist' THEN id ELSE aid END) ELSE '' END) AS a_slot,
+                    (CASE WHEN " + hB + @" THEN (CASE WHEN kind = 'MusicAlbum' THEN id ELSE COALESCE(parent,'') END) ELSE '' END) AS b_slot,
+                    (CASE WHEN " + hC + @" THEN (CASE WHEN kind = 'Audio' THEN id ELSE '' END) ELSE '' END) AS c_slot,
+                    (CASE WHEN " + hA + @" THEN COALESCE((SELECT i2.name FROM items i2 WHERE i2.jellyfin_id = ann.aid), artist, item) ELSE '' END) AS a_name,
+                    (CASE WHEN " + hB + @" THEN COALESCE(album, item) ELSE '' END) AS b_name,
+                    (CASE WHEN " + hC + @" THEN item ELSE '' END) AS c_name
+                  FROM ann
+                  WHERE (CASE kind
+                    WHEN 'Audio' THEN " + needAlbum + " AND " + needArtist + @"
+                    WHEN 'MusicAlbum' THEN " + needArtist + @"
+                    ELSE 1
+                  END) = 1
+                ),
+                shaped AS (
+                  SELECT keyed.*,
+                    (CASE WHEN " + hA + @" THEN a_slot WHEN " + hB + @" THEN b_slot ELSE c_slot END) AS chain
+                  FROM keyed
+                )";
     
             using var c = NewConn();
     
             long total;
             using (var cc = c.CreateCommand())
             {
-                cc.CommandText = prefix + " SELECT COUNT(DISTINCT chain) FROM keyed;";
+                cc.CommandText = prefix + " SELECT COUNT(DISTINCT chain) FROM shaped;";
                 foreach (var (k, v) in args) { cc.Parameters.AddWithValue(k, v); }
                 total = Convert.ToInt64(cc.ExecuteScalar(), CultureInfo.InvariantCulture);
             }
@@ -1424,15 +1445,16 @@ COALESCE(i.parent_id,'') AS parent, COALESCE(i.disc,0) AS disc, COALESCE(i.track
             using (var cmd = c.CreateCommand())
             {
                 cmd.CommandText = prefix + @",
-keys AS (
-  SELECT DISTINCT chain, artist_key, album_key FROM keyed
-  ORDER BY artist_key " + dir + ", album_key " + dir + ", chain " + dir + @"
-  LIMIT $lim OFFSET $off
-)
-SELECT k.* FROM keyed k JOIN keys ON keys.chain = k.chain
-ORDER BY k.artist_key " + dir + ", k.album_key " + dir + ", k.chain " + dir + @",
-  CASE k.kind WHEN 'MusicArtist' THEN 0 WHEN 'MusicAlbum' THEN 1 ELSE 2 END,
-  k.disc, k.track, k.item, k.field, k.value;";
+        keys AS (
+          SELECT chain, MIN(a_name) AS a_name, MIN(b_name) AS b_name, MIN(c_name) AS c_name
+          FROM shaped GROUP BY chain
+          ORDER BY a_name " + dir + ", b_name " + dir + ", c_name " + dir + ", chain " + dir + @"
+          LIMIT $lim OFFSET $off
+        )
+        SELECT s.* FROM shaped s JOIN keys ON keys.chain = s.chain
+        ORDER BY keys.a_name " + dir + ", keys.b_name " + dir + ", keys.c_name " + dir + ", s.chain " + dir + @",
+          CASE s.kind WHEN 'MusicArtist' THEN 0 WHEN 'MusicAlbum' THEN 1 ELSE 2 END,
+          s.disc, s.track, s.c_name, s.field, s.value;";
 
                 foreach (var (k, v) in args) { cmd.Parameters.AddWithValue(k, v); }
                 cmd.Parameters.AddWithValue("$lim", Math.Max(1, chainLimit));
@@ -1441,14 +1463,18 @@ ORDER BY k.artist_key " + dir + ", k.album_key " + dir + ", k.chain " + dir + @"
                 using var r = cmd.ExecuteReader();
                 while (r.Read())
                 {
-                    var chainValue = r.GetString(17);
+                    var aKey = r.GetString(17);
+                    var bKey = r.GetString(18);
+                    var cKey = r.GetString(19);
+                    var chainValue = r.GetString(23);
                     if (chainValue != previousChain) { groups++; previousChain = chainValue; }
 
                     rows.Add(new BrowseRow(
                         r.GetString(0), r.GetString(1), r.GetString(2), r.GetString(3), r.GetString(4),
                         r.GetString(5), r.GetString(6), r.GetString(7),
                         r.GetInt64(8) != 0, r.GetInt64(9) != 0, r.GetString(10), r.GetString(11),
-                        r.GetString(12), r.GetInt64(13), r.GetInt64(14), chainValue));
+                        r.GetString(12), r.GetInt64(13), r.GetInt64(14),
+                        chainValue, aKey, bKey, cKey));
                 }
             }
 
