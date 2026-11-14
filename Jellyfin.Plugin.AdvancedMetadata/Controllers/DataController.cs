@@ -231,7 +231,7 @@ public class DataController : ControllerBase
 
     [HttpGet("Tree")]
     public ActionResult Tree([FromQuery] string? field, [FromQuery] string? q, [FromQuery] string? name,
-                             [FromQuery] string? kind,
+                             [FromQuery] string? path, [FromQuery] string? kind,
                              [FromQuery] bool? onlyOverrides, [FromQuery] string? letter,
                              [FromQuery] bool? desc, [FromQuery] int? limit, [FromQuery] int? offset)
     {
@@ -253,12 +253,13 @@ public class DataController : ControllerBase
                         && h.Contains("artist", StringComparison.OrdinalIgnoreCase))
             .ToList();
 
-        var effective = withArtists.Count > 0 ? withArtists : chosen;
+        var wantsArtist = (path ?? string.Empty).Contains("Artist", StringComparison.OrdinalIgnoreCase);
+        var effective = (wantsArtist && withArtists.Count > 0) ? withArtists : chosen;
 
         MetadataStore.TreePage result;
         try
         {
-            result = _store.BrowseTree(string.Join(",", effective), q, name, kind,
+            result = _store.BrowseTree(string.Join(",", effective), q, name, path, kind,
                                        onlyOverrides == true, letter, desc == true, lim, off);
         }
         catch (Exception ex)
@@ -270,12 +271,13 @@ public class DataController : ControllerBase
         {
             Total = result.Total,
             Groups = result.Groups,
-            Restricted = withArtists.Count > 0 && withArtists.Count < chosen.Count,
+            Restricted = wantsArtist && withArtists.Count > 0 && withArtists.Count < chosen.Count,
             Fields = effective,
             Rows = result.Rows.Select(v => new
             {
                 v.Id, v.Kind, v.Item, v.Artist, v.Album, v.Detail, v.Field, v.Value,
-                v.IsOverride, v.IsDeleted, v.OverrideOld, v.Added, v.Parent, v.Disc, v.Track, v.Chain
+                v.IsOverride, v.IsDeleted, v.OverrideOld, v.Added, v.Parent, v.Disc, v.Track,
+                v.Chain, v.ArtistKey, v.AlbumKey, v.ItemKey
             })
         });
     }
