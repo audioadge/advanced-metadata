@@ -1399,10 +1399,10 @@ COALESCE(i.parent_id,'') AS parent, COALESCE(i.disc,0) AS disc, COALESCE(i.track
     
             var prefix = "WITH raw AS (" + UnionSql + @"),
                 ann AS (
-                  SELECT r.*, COALESCE(it.artist_id,'') AS aid, COALESCE(ff.hierarchy,'') AS hier
+                  SELECT r.*,
+                    COALESCE((SELECT i0.artist_id FROM items i0 WHERE i0.jellyfin_id = r.id), '') AS aid,
+                    COALESCE((SELECT f0.hierarchy FROM fields f0 WHERE f0.name = r.field), '') AS hier
                   FROM raw r
-                  LEFT JOIN items it ON it.jellyfin_id = r.id
-                  LEFT JOIN fields ff ON ff.name = r.field
                   WHERE " + filter + @"
                 ),
                 keyed AS (
