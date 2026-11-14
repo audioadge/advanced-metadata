@@ -1447,9 +1447,9 @@ COALESCE(i.parent_id,'') AS parent, COALESCE(i.disc,0) AS disc, COALESCE(i.track
             {
                 cmd.CommandText = prefix + @"
                     SELECT * FROM shaped
-                    ORDER BY a_name " + dir + ", b_name " + dir + ", c_name " + dir + ", chain " + dir + @",
+                    ORDER BY a_name " + dir + ", b_name " + dir + @",
                       CASE kind WHEN 'MusicArtist' THEN 0 WHEN 'MusicAlbum' THEN 1 ELSE 2 END,
-                      disc, track, item, field, value
+                      disc, track, c_name " + dir + ", chain " + dir + ", item, field, value
                     LIMIT $lim OFFSET $off;";
 
                 foreach (var (k, v) in args) { cmd.Parameters.AddWithValue(k, v); }
