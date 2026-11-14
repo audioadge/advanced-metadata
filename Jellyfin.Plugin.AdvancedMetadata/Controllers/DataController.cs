@@ -259,8 +259,17 @@ public class DataController : ControllerBase
         MetadataStore.TreePage result;
         try
         {
-            result = _store.BrowseTree(string.Join(",", effective), q, name, path, kind,
-                                       onlyOverrides == true, letter, desc == true, lim, off);
+            result = _store.BrowseTree(
+                field: string.Join(",", effective),
+                query: q,
+                name: name,
+                path: path,
+                kind: kind,
+                onlyOverrides: onlyOverrides == true,
+                letter: letter,
+                desc: desc == true,
+                chainLimit: lim,
+                chainOffset: off);
         }
         catch (Exception ex)
         {
