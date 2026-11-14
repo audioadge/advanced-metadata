@@ -118,6 +118,8 @@
   .am-letter:hover { border-color: #8b949e; }
   .am-letter.on { background: #2ecc71; border-color: #2ecc71; color: #10240f; font-weight: 600; }
   .am-nest { border-left: 3px solid #30363d; }
+  .am-child { margin-left: 18px; border-left: 3px solid #30363d; padding-left: 12px; }
+  .am-songline { margin-left: 18px; border-left: 3px solid #30363d; padding-left: 12px; margin-top: 10px; }
   .am-added { font-size: .78em; color: #8b949e; margin-left: 8px; white-space: nowrap; }
   .am-addedcell { font-size: .8em; color: #8b949e; white-space: nowrap; }
   .am-actionscell { white-space: nowrap; text-align: right; }
@@ -1486,7 +1488,7 @@ function valueRow(v, showPath) {
     return row;
   }
 
-function treeHead(kindTag, name) {
+function treeHead(kindTag, name, note) {
     var head = document.createElement('div');
     head.className = 'am-itemhead';
     var t = document.createElement('strong');
@@ -1498,123 +1500,134 @@ function treeHead(kindTag, name) {
     tag.className = 'am-kindtag';
     tag.textContent = kindTag;
     meta.appendChild(tag);
+    if (note) {
+      var n = document.createElement('span');
+      n.className = 'am-artisttag';
+      n.textContent = note;
+      meta.appendChild(n);
+    }
     head.appendChild(meta);
     return head;
   }
 
-  function renderTree(rows) {
-    var wrap = $('dataGrouped');
-    wrap.innerHTML = '';
-    $('dataTable').style.display = 'none';
-    $('dataEmpty').style.display = rows.length ? 'none' : 'block';
-    if (!rows.length) { return; }
+function renderTree(rows) {
+  var wrap = $('dataGrouped');
+  wrap.innerHTML = '';
+  $('dataTable').style.display = 'none';
+  $('dataEmpty').style.display = rows.length ? 'none' : 'block';
+  if (!rows.length) { return; }
 
-    var showPaths = $('chkPaths').checked;
-    var chain = null, aKey = null, bKey = null, cKey = null;
-    var box = null, artistBlock = null, albumBlock = null;
+  var showPaths = $('chkPaths').checked;
+  var wantArtist = groupPath.indexOf('Artist') > -1;
+  var wantAlbum = groupPath.indexOf('Album') > -1;
 
-    rows.forEach(function (r) {
-      if (r.Chain !== chain) {
-        chain = r.Chain;
-        box = document.createElement('div');
-        box.className = 'am-itemgroup';
-        wrap.appendChild(box);
-        aKey = null; bKey = null; cKey = null;
-        artistBlock = null; albumBlock = null;
+  var chain = null, aKey = null, bKey = null, cKey = null;
+  var box = null, artistBlock = null, albumBlock = null;
+
+  rows.forEach(function (r) {
+    if (r.Chain !== chain) {
+      chain = r.Chain;
+      box = document.createElement('div');
+      box.className = 'am-itemgroup';
+      wrap.appendChild(box);
+      aKey = null; bKey = null; cKey = null;
+      artistBlock = null; albumBlock = null;
+    }
+
+    if (r.ArtistKey !== aKey) {
+      aKey = r.ArtistKey;
+      artistBlock = null;
+      if (aKey) {
+        artistBlock = document.createElement('div');
+        artistBlock.appendChild(treeHead('Artist', r.Item));
+        box.appendChild(artistBlock);
       }
+    }
 
-      if (r.ArtistKey !== aKey) {
-        aKey = r.ArtistKey;
-        artistBlock = null;
-        if (aKey) {
-          artistBlock = document.createElement('div');
-          artistBlock.appendChild(treeHead('Artist', r.Item));
-          box.appendChild(artistBlock);
-        }
+    if (r.AlbumKey !== bKey) {
+      bKey = r.AlbumKey;
+      albumBlock = null;
+      if (bKey) {
+        albumBlock = document.createElement('div');
+        albumBlock.className = 'am-child';
+        albumBlock.appendChild(treeHead('Album', r.Album || r.Item,
+          wantArtist ? '' : (r.Artist ? 'Artist: ' + r.Artist : '')));
+        (artistBlock || box).appendChild(albumBlock);
       }
+    }
 
-      if (r.AlbumKey !== bKey) {
-        bKey = r.AlbumKey;
-        albumBlock = null;
-        if (bKey) {
-          albumBlock = document.createElement('div');
-          albumBlock.className = 'am-nest';
-          albumBlock.style.marginLeft = '14px';
-          albumBlock.appendChild(treeHead('Album', r.Album || r.Item));
-          (artistBlock || box).appendChild(albumBlock);
-        }
-      }
-
-      if (r.Kind === 'MusicArtist') {
-        (artistBlock || box).appendChild(valueRow(r, showPaths));
-        return;
-      }
-
-      if (r.Kind === 'MusicAlbum') {
-        (albumBlock || artistBlock || box).appendChild(valueRow(r, showPaths));
-        return;
-      }
-
-      var target = albumBlock || artistBlock || box;
-
-      if (r.ItemKey !== cKey) {
-        cKey = r.ItemKey;
-        if (cKey) {
-          var line = document.createElement('div');
-          line.className = 'am-itemhead';
-          line.style.marginTop = '10px';
-          var st = document.createElement('strong');
-          st.textContent = r.Item || '—';
-          line.appendChild(st);
-          var sm = document.createElement('div');
-          sm.className = 'am-itemmeta';
-          if (r.Track) {
-            var trk = document.createElement('span');
-            trk.className = 'am-artisttag';
-            trk.textContent = 'Track ' + r.Track + (r.Disc ? ' · Disc ' + r.Disc : '');
-            sm.appendChild(trk);
-          }
-          if (showPaths && r.Detail) {
-            var pth = document.createElement('span');
-            pth.className = 'am-artisttag am-mono';
-            pth.textContent = r.Detail;
-            sm.appendChild(pth);
-          }
-          line.appendChild(sm);
-          target.appendChild(line);
-        }
-      }
-
-      target.appendChild(valueRow(r, showPaths));
-    });
-  }
-
-function redrawData() {
-    if (!Array.isArray(dataRowsAll)) { dataRowsAll = []; }
-    var rows = applyFilter(dataRowsAll);
-    $('dataTable').classList.toggle('hidepath', !$('chkPaths').checked);
-
-    if (groupPath) {
-      $('dataCount').textContent = chainsLoaded + ' group(s) loaded'
-        + (dataTotal > chainsLoaded ? ' of ' + dataTotal : '')
-        + ' — ' + rows.length + ' row(s) shown'
-        + (dataTotal > chainsLoaded ? '. Use Show more for the rest.' : '.');
-      renderTree(rows);
-      $('btnMore').style.display = (chainsLoaded < dataTotal) ? 'inline-block' : 'none';
+    if (r.Kind === 'MusicArtist') {
+      (artistBlock || box).appendChild(valueRow(r, showPaths));
       return;
     }
 
-    $('dataCount').textContent = rows.length + ' row(s) shown'
-      + (dataTotal > rows.length ? ' of ' + dataTotal + ' — use Show more for the rest' : '');
-    renderFlat(sortRows(rows));
-    $('btnMore').style.display = (dataRowsAll.length < dataTotal) ? 'inline-block' : 'none';
-  }
+    if (r.Kind === 'MusicAlbum') {
+      (albumBlock || artistBlock || box).appendChild(valueRow(r, showPaths));
+      return;
+    }
+
+    var target = albumBlock || artistBlock || box;
+
+    if (r.ItemKey !== cKey) {
+      cKey = r.ItemKey;
+      if (cKey) {
+        var line = document.createElement('div');
+        line.className = 'am-itemhead am-songline';
+        var st = document.createElement('strong');
+        st.textContent = r.Item || '—';
+        line.appendChild(st);
+        var sm = document.createElement('div');
+        sm.className = 'am-itemmeta';
+        if (r.Track) {
+          var trk = document.createElement('span');
+          trk.className = 'am-artisttag';
+          trk.textContent = 'Track ' + r.Track + (r.Disc ? ' · Disc ' + r.Disc : '');
+          sm.appendChild(trk);
+        }
+        if (!wantArtist && r.Artist) {
+          var an = document.createElement('span');
+          an.className = 'am-artisttag';
+          an.textContent = 'Artist: ' + r.Artist;
+          sm.appendChild(an);
+        }
+        if (!wantAlbum && r.Album) {
+          var al = document.createElement('span');
+          al.className = 'am-artisttag';
+          al.textContent = 'Album: ' + r.Album;
+          sm.appendChild(al);
+        }
+        if (showPaths && r.Detail) {
+          var pth = document.createElement('span');
+          pth.className = 'am-artisttag am-mono';
+          pth.textContent = r.Detail;
+          sm.appendChild(pth);
+        }
+        line.appendChild(sm);
+        target.appendChild(line);
+      }
+    }
+
+    target.appendChild(valueRow(r, showPaths));
+  });
+}
+  
+function redrawData() {
+    if (!Array.isArray(dataRowsAll)) { dataRowsAll = []; }
+    var rows = applyFilter(dataRowsAll);
+      $('dataTable').classList.toggle('hidepath', !$('chkPaths').checked);
+  
+      $('dataCount').textContent = rows.length + ' result(s) shown'
+        + (dataTotal > rows.length ? ' of ' + dataTotal + ' — use Show more for the rest' : '');
+  
+      if (groupPath) { renderTree(rows); } else { renderFlat(sortRows(rows)); }
+      $('btnMore').style.display = (dataRowsAll.length < dataTotal) ? 'inline-block' : 'none';
+    }
 
   var letterFilter = '';
   var groupPath = '';
   var chainsLoaded = 0;
   var dataSearched = false;
-  var TREE_PAGE = 40;
+  var TREE_PAGE = 200;
 
   var bulkSelected = [];
   var pageSize = PAGE_SIZE;
@@ -1684,8 +1697,7 @@ function redrawData() {
 
           dataTotal = (res && res.Total) || 0;
           dataRowsAll = append ? dataRowsAll.concat(rows) : rows;
-          chainsLoaded = append ? chainsLoaded + groups : groups;
-          dataOffset = append ? dataOffset + groups : groups;
+          dataOffset = dataRowsAll.length;
 
           if (res && res.Restricted) {
             setStatus('dataStatus', 'info',
