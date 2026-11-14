@@ -397,10 +397,13 @@
     </div>
     
     <div class="am-sortbar">
-      <label>View
+     <label>Group by
         <select id="dataView">
-          <option value="flat">Flat — one row per value</option>
-          <option value="tree">Grouped — artist › album › song</option>
+          <option value="">None — one row per value</option>
+          <option value="Item">Song</option>
+          <option value="Album">Album</option>
+          <option value="Album>Item">Album › Song</option>
+          <option value="Artist>Album>Item">Artist › Album › Song</option>
         </select>
       </label>
       <button id="dataDir" class="am-btn" title="Reverse the order">↑</button>
@@ -1293,9 +1296,10 @@ function clearDataResults() {
     dataOffset = 0;
     dataTotal = 0;
     if ($('dataFilter')) { $('dataFilter').value = ''; }
-    if ($('dataView')) { $('dataView').value = 'flat'; }
-    grouped = false;
+    if ($('dataView')) { $('dataView').value = ''; }
+    groupPath = '';
     chainsLoaded = 0;
+    dataSearched = false;
     if ($('dataItem')) { $('dataItem').value = ''; }
     if ($('dataValue')) { $('dataValue').value = ''; }
     if ($('dataKind')) { $('dataKind').value = ''; }
@@ -1307,12 +1311,12 @@ function clearDataResults() {
     $('dataCount').textContent = '';
     $('btnMore').style.display = 'none';
     letterFilter = '';
-    grouped = false;
+    groupPath = '';
     chainsLoaded = 0;
     sortAsc = true;
     bulkSelected = [];
     updateBulkCount();
-    if ($('dataView')) { $('dataView').value = 'flat'; }
+    if ($('dataView')) { $('dataView').value = ''; }
     buildLetters();
     updateDir();
     clearStatus('dataStatus');
@@ -1506,7 +1510,8 @@ function treeHead(kindTag, name) {
     if (!rows.length) { return; }
 
     var showPaths = $('chkPaths').checked;
-    var chain = null, box = null, artistBlock = null, albumBlock = null, lastSong = null;
+    var chain = null, aKey = null, bKey = null, cKey = null;
+    var box = null, artistBlock = null, albumBlock = null;
 
     rows.forEach(function (r) {
       if (r.Chain !== chain) {
@@ -1514,60 +1519,72 @@ function treeHead(kindTag, name) {
         box = document.createElement('div');
         box.className = 'am-itemgroup';
         wrap.appendChild(box);
-        artistBlock = null;
-        albumBlock = null;
-        lastSong = null;
+        aKey = null; bKey = null; cKey = null;
+        artistBlock = null; albumBlock = null;
       }
 
-      if (r.Kind === 'MusicArtist') {
-        if (!artistBlock) {
+      if (r.ArtistKey !== aKey) {
+        aKey = r.ArtistKey;
+        artistBlock = null;
+        if (aKey) {
           artistBlock = document.createElement('div');
           artistBlock.appendChild(treeHead('Artist', r.Item));
           box.appendChild(artistBlock);
         }
-        artistBlock.appendChild(valueRow(r, showPaths));
+      }
+
+      if (r.AlbumKey !== bKey) {
+        bKey = r.AlbumKey;
+        albumBlock = null;
+        if (bKey) {
+          albumBlock = document.createElement('div');
+          albumBlock.className = 'am-nest';
+          albumBlock.style.marginLeft = '14px';
+          albumBlock.appendChild(treeHead('Album', r.Album || r.Item));
+          (artistBlock || box).appendChild(albumBlock);
+        }
+      }
+
+      if (r.Kind === 'MusicArtist') {
+        (artistBlock || box).appendChild(valueRow(r, showPaths));
         return;
       }
 
       if (r.Kind === 'MusicAlbum') {
-        if (!albumBlock) {
-          albumBlock = document.createElement('div');
-          albumBlock.className = 'am-nest';
-          albumBlock.style.marginLeft = '14px';
-          albumBlock.appendChild(treeHead('Album', r.Item));
-          box.appendChild(albumBlock);
-        }
-        albumBlock.appendChild(valueRow(r, showPaths));
+        (albumBlock || artistBlock || box).appendChild(valueRow(r, showPaths));
         return;
       }
 
       var target = albumBlock || artistBlock || box;
-      var songId = (r.Item || '') + '\u0001' + (r.Detail || '');
-      if (songId !== lastSong) {
-        lastSong = songId;
-        var line = document.createElement('div');
-        line.className = 'am-itemhead';
-        line.style.marginTop = '10px';
-        var st = document.createElement('strong');
-        st.textContent = r.Item || '—';
-        line.appendChild(st);
-        var sm = document.createElement('div');
-        sm.className = 'am-itemmeta';
-        if (r.Track) {
-          var trk = document.createElement('span');
-          trk.className = 'am-artisttag';
-          trk.textContent = 'Track ' + r.Track + (r.Disc ? ' · Disc ' + r.Disc : '');
-          sm.appendChild(trk);
+
+      if (r.ItemKey !== cKey) {
+        cKey = r.ItemKey;
+        if (cKey) {
+          var line = document.createElement('div');
+          line.className = 'am-itemhead';
+          line.style.marginTop = '10px';
+          var st = document.createElement('strong');
+          st.textContent = r.Item || '—';
+          line.appendChild(st);
+          var sm = document.createElement('div');
+          sm.className = 'am-itemmeta';
+          if (r.Track) {
+            var trk = document.createElement('span');
+            trk.className = 'am-artisttag';
+            trk.textContent = 'Track ' + r.Track + (r.Disc ? ' · Disc ' + r.Disc : '');
+            sm.appendChild(trk);
+          }
+          if (showPaths && r.Detail) {
+            var pth = document.createElement('span');
+            pth.className = 'am-artisttag am-mono';
+            pth.textContent = r.Detail;
+            sm.appendChild(pth);
+          }
+          line.appendChild(sm);
+          target.appendChild(line);
         }
-        if (showPaths && r.Detail) {
-          var pth = document.createElement('span');
-          pth.className = 'am-artisttag am-mono';
-          pth.textContent = r.Detail;
-          sm.appendChild(pth);
-        }
-        line.appendChild(sm);
-        target.appendChild(line);
       }
+
       target.appendChild(valueRow(r, showPaths));
     });
   }
@@ -1577,7 +1594,7 @@ function redrawData() {
     var rows = applyFilter(dataRowsAll);
     $('dataTable').classList.toggle('hidepath', !$('chkPaths').checked);
 
-    if (grouped) {
+    if (groupPath) {
       $('dataCount').textContent = chainsLoaded + ' group(s) loaded'
         + (dataTotal > chainsLoaded ? ' of ' + dataTotal : '')
         + ' — ' + rows.length + ' row(s) shown'
@@ -1594,8 +1611,9 @@ function redrawData() {
   }
 
   var letterFilter = '';
-  var grouped = false;
+  var groupPath = '';
   var chainsLoaded = 0;
+  var dataSearched = false;
   var TREE_PAGE = 40;
 
   var bulkSelected = [];
@@ -1648,7 +1666,8 @@ function redrawData() {
       if (!name) { setStatus('dataStatus', 'warn', 'Type part of a title first.'); return; }
     }
 
-    var base = 'field=' + encodeURIComponent(picked.join(','))
+    var base = 'path=' + encodeURIComponent(groupPath)
+      + '&field=' + encodeURIComponent(picked.join(','))
       + '&q=' + encodeURIComponent(dataMode === 'item' ? '' : $('dataValue').value.trim())
       + '&name=' + encodeURIComponent(name)
       + '&kind=' + encodeURIComponent($('dataKind').value)
@@ -1656,7 +1675,7 @@ function redrawData() {
       + '&letter=' + encodeURIComponent(letterFilter)
       + '&desc=' + (sortAsc ? 'false' : 'true');
 
-    if (grouped) {
+    if (groupPath) {
       apiGet('AdvancedMetadataData/Tree?' + base
              + '&offset=' + (append ? dataOffset : 0) + '&limit=' + TREE_PAGE)
         .then(function (res) {
@@ -1782,10 +1801,11 @@ function deleteValue(r) {
   }
   
   function wireData() {
-    $('btnDataItem').addEventListener('click', function () { dataMode = 'item'; dataOffset = 0; loadData(false); });
+    $('btnDataItem').addEventListener('click', function () { dataMode = 'item'; dataSearched = true; dataOffset = 0; loadData(false); });
     $('dataItem').addEventListener('keydown', function (e) { if (e.key === 'Enter') { $('btnDataItem').click(); } });
     $('btnDataField').addEventListener('click', function () {
       dataMode = 'field';
+      dataSearched = true;
       dataOffset = 0;
       loadData(false);
     });
@@ -1794,11 +1814,12 @@ function deleteValue(r) {
     $('btnMore').addEventListener('click', function () { loadData(true); });
     $('btnResetData').addEventListener('click', clearDataResults);
    $('dataView').addEventListener('change', function () {
-      grouped = this.value === 'tree';
+      groupPath = this.value;
       dataOffset = 0;
       chainsLoaded = 0;
       dataRowsAll = [];
-      if (grouped) { sortKey = 'Artist'; sortAsc = true; updateDir(); }
+      if (groupPath) { sortKey = 'Artist'; sortAsc = true; updateDir(); }
+      if (!dataSearched) { redrawData(); return; }
       loadData(false);
     });
     buildLetters();
@@ -1860,11 +1881,11 @@ function deleteValue(r) {
 
     $('dataReset').addEventListener('click', function () {
      letterFilter = '';
-      grouped = false;
+      groupPath = '';
       chainsLoaded = 0;
       sortKey = 'Artist';
       sortAsc = true;
-      if ($('dataView')) { $('dataView').value = 'flat'; }
+      if ($('dataView')) { $('dataView').value = ''; }
       if ($('chkOverrides')) { $('chkOverrides').checked = false; }
       if ($('chkPaths')) { $('chkPaths').checked = false; }
       buildLetters();
