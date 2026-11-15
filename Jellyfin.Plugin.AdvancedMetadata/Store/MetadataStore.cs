@@ -1332,7 +1332,7 @@ COALESCE(i.parent_id,'') AS parent, COALESCE(i.disc,0) AS disc, COALESCE(i.track
         var where = new List<string>();
         var args = new List<(string K, object V)>();
         // The chosen path decides the level, so the Hierarchy dropdown is ignored here.
-        BuildWhere(where, args, field, query, null, onlyOverrides, letter);
+        BuildWhere(where, args, field, query, null, onlyOverrides, null);
 
         var p = path ?? string.Empty;
         var wantArtist = p.Contains("Artist", StringComparison.OrdinalIgnoreCase);
@@ -1348,6 +1348,19 @@ COALESCE(i.parent_id,'') AS parent, COALESCE(i.disc,0) AS disc, COALESCE(i.track
         var kindMarks = new List<string>();
         for (var ki = 0; ki < kinds.Count; ki++) { kindMarks.Add("$pk" + ki); args.Add(("$pk" + ki, kinds[ki])); }
         where.Add("kind IN (" + string.Join(",", kindMarks) + ")");
+
+        // The letter filters the outermost level of the chosen grouping.
+        if (!string.IsNullOrWhiteSpace(letter))
+        {
+            var letterCol = wantArtist ? "artist" : (wantAlbum ? "album" : "item");
+            var letterExpr = "UPPER(substr(" + letterCol + ",1,1))";
+            if (letter == "#") { where.Add(letterExpr + " NOT GLOB '[A-Z]'"); }
+            else
+            {
+                where.Add(letterExpr + " = $letter");
+                args.Add(("$letter", letter.Trim().ToUpperInvariant()));
+            }
+        }
 
         var hA = wantArtist ? "(hier LIKE '%artist%')" : "0";
         var hB = wantAlbum ? "(hier LIKE '%album%')" : "0";
