@@ -306,22 +306,22 @@
     <div id="manageEmpty" class="am-hint"></div>
 
     <div class="am-card">
-      <strong>Indexed</strong>
-      <div class="am-hint" style="margin-top:6px">
-        <span class="am-mono">Indexed</span> is the number of unique items with at least one value for
-        that mapping. An item edited or deleted only counts once. Press
-        <span class="am-mono">⋯</span> for the breakdown by level and by edit state.
-      </div>
-    </div>
-
-    <div class="am-card">
       <strong>Delimiters</strong>
       <div class="am-hint" style="margin-top:6px">
         <span class="am-mono">default</span> means the default list of
         <span class="am-mono">/ | ; :</span> applies. <span class="am-mono">− /</span> takes a character off
         the default list, <span class="am-mono">+ &gt;&gt;</span> adds one, and
         <span class="am-mono">only ~</span> uses characters on their own.
-        The default list can be changed on the <strong>Advanced</strong> tab.
+       The default list can be changed on the <strong>Advanced</strong> tab.
+      </div>
+    </div>
+
+    <div class="am-card">
+      <strong>Indexed</strong>
+      <div class="am-hint" style="margin-top:6px">
+        <span class="am-mono">Indexed</span> is the number of unique items with at least one value for
+        that mapping. An item edited or deleted only counts once. Press
+        <span class="am-mono">breakdown</span> for the count by level and by edit state.
       </div>
     </div>
     <div class="am-actions">  
@@ -526,6 +526,7 @@
     <div class="am-card">
       <div class="am-kv"><span>Scan status</span><span id="kvStatus">—</span></div>
       <div class="am-kv"><span>Scan type</span><span id="kvType">—</span></div>
+      <div class="am-kv"><span>Library</span><span id="kvLibrary">—</span></div>
       <div class="am-kv"><span>Mapping</span><span id="kvMapping">—</span></div>
       <div class="am-kv"><span>Tracks read</span><span id="kvItems">—</span></div>
       <div class="am-kv"><span>Unchanged / skipped</span><span id="kvSkipped">—</span></div>
@@ -1221,8 +1222,7 @@ function renderManage() {
 
         var idxMore = document.createElement('button');
         idxMore.className = 'am-link am-idxmore';
-        idxMore.textContent = '\u22EF';
-        idxMore.title = 'Breakdown';
+        idxMore.textContent = 'breakdown';
         idxMore.addEventListener('click', function () {
           idxBrk.style.display = idxBrk.style.display === 'none' ? 'block' : 'none';
         });
@@ -2061,7 +2061,12 @@ function deleteValue(r) {
       }
       $('kvType').textContent = t;
     }
-    if ($('kvMapping')) { $('kvMapping').textContent = cfg.LastScanMapping || 'All mappings'; }
+    if ($('kvLibrary')) { $('kvLibrary').textContent = cfg.LastScanLibrary || 'All libraries'; }
+    if ($('kvMapping')) {
+      $('kvMapping').textContent = cfg.LastScanMapping === 'unresolved'
+        ? 'requested mapping no longer exists'
+        : (cfg.LastScanMapping || 'All mappings');
+    }
     if ($('kvItems')) { $('kvItems').textContent = cfg.LastScanItems == null ? '—' : cfg.LastScanItems; }
     if ($('kvSkipped')) { $('kvSkipped').textContent = cfg.LastScanSkipped == null ? '—' : cfg.LastScanSkipped; }
     if ($('kvValues')) { $('kvValues').textContent = cfg.LastScanValues == null ? '—' : cfg.LastScanValues; }
@@ -2180,16 +2185,21 @@ var LIB_TYPES = {
       return;
     }
 
-    cfg.PendingScanLibraryId = $('scanLibrary').value;
-    cfg.PendingScanMappingId = $('scanMapping') ? $('scanMapping').value : '';
-    saveConfig(cfg)
-        .then(function () { return apiPost('ScheduledTasks/Running/' + task.Id); })
-        .then(function () {
-      setStatus('scanStatus', 'info', 'Scan started at ' + new Date().toLocaleTimeString());
-          $('chkFull').checked = false;
-          setTimeout(refreshTask, 700);
-        })
-        .catch(function (e) { setStatus('scanStatus', 'err', 'Could not start scan: ' + e.message); });
+    var libVal = $('scanLibrary').value;
+    var mapVal = $('scanMapping') ? $('scanMapping').value : '';
+
+    apiPost('AdvancedMetadataData/StartScan?library=' + encodeURIComponent(libVal)
+            + '&mapping=' + encodeURIComponent(mapVal)
+            + '&full=' + ($('chkFull').checked ? 'true' : 'false'))
+      .then(function (txt) {
+        var j = {};
+        try { j = JSON.parse(txt); } catch (e) { j = { Ok: false, Message: 'Unexpected reply.' }; }
+        if (!j.Ok) { setStatus('scanStatus', 'err', j.Message || 'Could not start scan.'); return; }
+        setStatus('scanStatus', 'info', 'Scan started at ' + new Date().toLocaleTimeString());
+        $('chkFull').checked = false;
+        setTimeout(refreshTask, 700);
+      })
+      .catch(function (e) { setStatus('scanStatus', 'err', 'Could not start scan: ' + e.message); });
     });
 
     $('scanLibrary').addEventListener('change', function () {
