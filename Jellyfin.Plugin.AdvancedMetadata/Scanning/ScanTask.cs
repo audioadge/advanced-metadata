@@ -63,9 +63,8 @@ public class ScanTask : IScheduledTask
         Plugin.PendingFullRescan = false;
 
         // The in-process handoff wins; the config value is the fallback for scheduled runs.
-        var requestedMappingId = Plugin.PendingScanMappingId;
-        if (string.IsNullOrWhiteSpace(requestedMappingId)) { requestedMappingId = cfg.PendingScanMappingId; }
-        Plugin.PendingScanMappingId = string.Empty;
+        var requestedMapping = Plugin.PendingScanMappingTag;
+        Plugin.PendingScanMappingTag = string.Empty;
         cfg.PendingScanMappingId = string.Empty;
 
         // Optional single-library scope
@@ -126,17 +125,18 @@ public class ScanTask : IScheduledTask
         }
         // Optional single-mapping scope: read every item, but only for this one tag.
         var mappingScoped = false;
-        if (!string.IsNullOrWhiteSpace(requestedMappingId))
+        if (!string.IsNullOrWhiteSpace(requestedMapping))
         {
-            var only = mappings.Where(m => m.Id.ToString() == requestedMappingId).ToList();
-            cfg.PendingScanMappingId = string.Empty;
+            var only = mappings
+                .Where(m => string.Equals(m.SourceTag, requestedMapping, StringComparison.OrdinalIgnoreCase))
+                .ToList();
 
             if (only.Count > 0) { mappings = only; mappingScoped = true; }
         }
 
         cfg.LastScanMapping = mappingScoped && mappings.Count > 0
             ? mappings[0].SourceTag
-            : (string.IsNullOrWhiteSpace(requestedMappingId) ? string.Empty : "unresolved");
+            : (string.IsNullOrWhiteSpace(requestedMapping) ? string.Empty : "requested mapping \"" + requestedMapping + "\" no longer exists");
 
         var knownIds = cfg.KnownMappingIds.ToHashSet();
 
@@ -155,9 +155,7 @@ public class ScanTask : IScheduledTask
             backfill.Add(mappings[0].SourceTag);
         }
 
-        cfg.LastScanType = (full ? "Full Scan" : "Incremental Scan")
-            + (scoped ? " — " + scopeName : string.Empty)
-            + (mappingScoped && mappings.Count > 0 ? " — mapping " + mappings[0].SourceTag : string.Empty);
+        cfg.LastScanType = full ? "Full Scan" : "Incremental Scan";
 
         plugin.UpdateConfiguration(cfg);
         cfg.LastScanBackfill = backfill.Count;
