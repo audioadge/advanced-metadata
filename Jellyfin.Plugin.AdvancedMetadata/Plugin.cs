@@ -25,7 +25,7 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
     }
 
     /// <summary>Handoff from the config page so a started scan cannot race the config write.</summary>
-    public static string PendingScanMappingId { get; set; } = string.Empty;
+    public static string PendingScanMappingTag { get; set; } = string.Empty;
 
     public static string PendingScanLibraryId { get; set; } = string.Empty;
 
