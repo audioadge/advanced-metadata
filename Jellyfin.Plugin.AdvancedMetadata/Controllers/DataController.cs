@@ -220,7 +220,7 @@ public class DataController : ControllerBase
 
         return Ok(new
         {
-            Total = rows.Count,
+            Total = found.Total,
             Rows = rows.Select(v => new
             {
                 v.Id, v.Kind, v.Item, v.Artist, v.Album, v.Detail, v.Field, v.Value,
@@ -280,6 +280,9 @@ public class DataController : ControllerBase
         {
             Total = result.Total,
             Groups = result.Groups,
+            Artists = result.Artists,
+            Albums = result.Albums,
+            Songs = result.Items,
             Restricted = wantsArtist && withArtists.Count > 0 && withArtists.Count < chosen.Count,
             Fields = effective,
             Rows = result.Rows.Select(v => new
