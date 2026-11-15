@@ -329,7 +329,7 @@ public class DataController : ControllerBase
         Plugin.PendingScanLibraryId = library ?? string.Empty;
         Plugin.PendingFullRescan = full == true;
 
-        var worker = _tasks.GetTask(ScanKey);
+        var worker = _tasks.ScheduledTasks.FirstOrDefault(t => t.ScheduledTask.Key == ScanKey);
         if (worker is null) { return Ok(new { Ok = false, Message = "The scan task was not found." }); }
 
         _tasks.Execute(worker, new TaskOptions());
