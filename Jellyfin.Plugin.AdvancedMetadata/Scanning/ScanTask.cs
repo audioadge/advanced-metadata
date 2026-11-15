@@ -61,6 +61,9 @@ public class ScanTask : IScheduledTask
         var full = cfg.FullRescanRequested;
         cfg.FullRescanRequested = false;
 
+        // Read once, before any write can race with the UI's own save.
+        var requestedMappingId = cfg.PendingScanMappingId;
+
         // Optional single-library scope
         var scopeId = Guid.Empty;
         var scopeName = string.Empty;
@@ -116,13 +119,17 @@ public class ScanTask : IScheduledTask
         }
         // Optional single-mapping scope: read every item, but only for this one tag.
         var mappingScoped = false;
-        if (!string.IsNullOrWhiteSpace(cfg.PendingScanMappingId))
+        if (!string.IsNullOrWhiteSpace(requestedMappingId))
         {
-            var only = mappings.Where(m => m.Id.ToString() == cfg.PendingScanMappingId).ToList();
+            var only = mappings.Where(m => m.Id.ToString() == requestedMappingId).ToList();
             cfg.PendingScanMappingId = string.Empty;
 
             if (only.Count > 0) { mappings = only; mappingScoped = true; }
         }
+
+        cfg.LastScanMapping = mappingScoped && mappings.Count > 0
+            ? mappings[0].SourceTag
+            : (string.IsNullOrWhiteSpace(requestedMappingId) ? string.Empty : "unresolved");
 
         var knownIds = cfg.KnownMappingIds.ToHashSet();
 
@@ -145,7 +152,7 @@ public class ScanTask : IScheduledTask
 
         cfg.LastScanType = (full ? "Full Scan" : "Incremental Scan")
             + (scoped ? " — " + scopeName : string.Empty)
-            + (mappingScopedName.Length > 0 ? " — mapping " + mappingScopedName : string.Empty);
+            + (mappingScoped && mappings.Count > 0 ? " — mapping " + mappings[0].SourceTag : string.Empty);
         cfg.LastScanMapping = mappingScopedName;
 
         plugin.UpdateConfiguration(cfg);
