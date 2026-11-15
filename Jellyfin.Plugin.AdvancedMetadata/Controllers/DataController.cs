@@ -126,7 +126,7 @@ public class DataController : ControllerBase
         var rows = new List<object>();
         foreach (var f in _store.FieldSummary())
         {
-            rows.Add(new { f.Name, f.Display, f.Hierarchy, f.Items, f.Values });
+            rows.Add(new { f.Name, f.Display, f.Hierarchy, f.Items, f.Values, f.Artists, f.Albums, f.Songs, f.Edits, f.Deletes });
         }
 
         return Ok(rows);
