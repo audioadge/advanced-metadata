@@ -58,17 +58,23 @@ public class ScanTask : IScheduledTask
         var plugin = Plugin.Instance!;
         var cfg = plugin.Configuration;
 
-        var full = cfg.FullRescanRequested;
+        var full = cfg.FullRescanRequested || Plugin.PendingFullRescan;
         cfg.FullRescanRequested = false;
+        Plugin.PendingFullRescan = false;
 
-        // Read once, before any write can race with the UI's own save.
-        var requestedMappingId = cfg.PendingScanMappingId;
+        // The in-process handoff wins; the config value is the fallback for scheduled runs.
+        var requestedMappingId = Plugin.PendingScanMappingId;
+        if (string.IsNullOrWhiteSpace(requestedMappingId)) { requestedMappingId = cfg.PendingScanMappingId; }
+        Plugin.PendingScanMappingId = string.Empty;
+        cfg.PendingScanMappingId = string.Empty;
 
         // Optional single-library scope
         var scopeId = Guid.Empty;
         var scopeName = string.Empty;
         // Only a manually started scan carries a scope. The scheduled run is always global.
-        var requestedScope = cfg.PendingScanLibraryId;
+        var requestedScope = Plugin.PendingScanLibraryId;
+        if (string.IsNullOrWhiteSpace(requestedScope)) { requestedScope = cfg.PendingScanLibraryId; }
+        Plugin.PendingScanLibraryId = string.Empty;
         cfg.PendingScanLibraryId = string.Empty;
 
         if (Guid.TryParse(requestedScope, out var wantedScope) && wantedScope != Guid.Empty)
@@ -87,7 +93,8 @@ public class ScanTask : IScheduledTask
             }
         }
 
-        var scoped = scopeId != Guid.Empty;
+       var scoped = scopeId != Guid.Empty;
+        cfg.LastScanLibrary = scopeName;
 
         cfg.LastScanStartedUtc = DateTime.UtcNow;
         cfg.LastScanFinishedUtc = null;
@@ -148,12 +155,9 @@ public class ScanTask : IScheduledTask
             backfill.Add(mappings[0].SourceTag);
         }
 
-        var mappingScopedName = mappingScoped && mappings.Count > 0 ? mappings[0].SourceTag : string.Empty;
-
         cfg.LastScanType = (full ? "Full Scan" : "Incremental Scan")
             + (scoped ? " — " + scopeName : string.Empty)
             + (mappingScoped && mappings.Count > 0 ? " — mapping " + mappings[0].SourceTag : string.Empty);
-        cfg.LastScanMapping = mappingScopedName;
 
         plugin.UpdateConfiguration(cfg);
         cfg.LastScanBackfill = backfill.Count;
