@@ -319,6 +319,20 @@ public class DataController : ControllerBase
         }));
     }
 
+    [HttpPost("StartScan")]
+    public ActionResult StartScan([FromQuery] string? mapping, [FromQuery] string? library, [FromQuery] bool? full)
+    {
+        if (ScanRunning()) { return Ok(new { Ok = false, Message = "A scan is already running." }); }
+        if (Plugin.Instance is null) { return Ok(new { Ok = false, Message = "Plugin is not ready yet." }); }
+
+        Plugin.PendingScanMappingId = mapping ?? string.Empty;
+        Plugin.PendingScanLibraryId = library ?? string.Empty;
+        Plugin.PendingFullRescan = full == true;
+
+        _tasks.Execute(ScanKey);
+        return Ok(new { Ok = true });
+    }
+
     [HttpGet("Overrides")]
     public ActionResult Overrides()
         => Ok(_store.ListOverrides());
