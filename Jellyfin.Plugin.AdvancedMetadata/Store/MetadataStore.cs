@@ -1320,7 +1320,7 @@ COALESCE(i.parent_id,'') AS parent, COALESCE(i.disc,0) AS disc, COALESCE(i.track
         return Run(c, string.Join(" AND ", where), args, column, false, Math.Max(1, limit), 0).Rows;
     }
 
-    public record TreePage(List<BrowseRow> Rows, int Total, int Groups);
+    public record TreePage(List<BrowseRow> Rows, int Total, int Groups, int Artists, int Albums, int Items);
     
         /// <summary>
         /// Rows carrying a full artist / album / song chain. A row appears only when its whole
@@ -1331,7 +1331,8 @@ COALESCE(i.parent_id,'') AS parent, COALESCE(i.disc,0) AS disc, COALESCE(i.track
     {
         var where = new List<string>();
         var args = new List<(string K, object V)>();
-        BuildWhere(where, args, field, query, kind, onlyOverrides, letter);
+        // The chosen path decides the level, so the Hierarchy dropdown is ignored here.
+        BuildWhere(where, args, field, query, null, onlyOverrides, letter);
 
         var p = path ?? string.Empty;
         var wantArtist = p.Contains("Artist", StringComparison.OrdinalIgnoreCase);
@@ -1439,6 +1440,23 @@ COALESCE(i.parent_id,'') AS parent, COALESCE(i.disc,0) AS disc, COALESCE(i.track
                 total = Convert.ToInt64(cc.ExecuteScalar(), CultureInfo.InvariantCulture);
             }
     
+            var artists = 0;
+            var albums = 0;
+            var songs = 0;
+            using (var kc = c.CreateCommand())
+            {
+                kc.CommandText = prefix + " SELECT kind, COUNT(*) FROM shaped GROUP BY kind;";
+                foreach (var (k, v) in args) { kc.Parameters.AddWithValue(k, v); }
+                using var kr = kc.ExecuteReader();
+                while (kr.Read())
+                {
+                    var n = (int)kr.GetInt64(1);
+                    if (kr.GetString(0) == "MusicArtist") { artists = n; }
+                    else if (kr.GetString(0) == "MusicAlbum") { albums = n; }
+                    else { songs = n; }
+                }
+            }
+
             var rows = new List<BrowseRow>();
             var groups = 0;
             string? previousChain = null;
@@ -1476,7 +1494,7 @@ COALESCE(i.parent_id,'') AS parent, COALESCE(i.disc,0) AS disc, COALESCE(i.track
                 }
             }
 
-            return new TreePage(rows, (int)total, groups);
+            return new TreePage(rows, (int)total, groups, artists, albums, songs);
         }
     
     /// <summary>Rows for a specific set of item ids, used to pull ancestors in.</summary>
