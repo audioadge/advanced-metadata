@@ -512,6 +512,7 @@
     <div class="am-card">
       <div class="am-kv"><span>Scan status</span><span id="kvStatus">—</span></div>
       <div class="am-kv"><span>Scan type</span><span id="kvType">—</span></div>
+      <div class="am-kv"><span>Mapping</span><span id="kvMapping">—</span></div>
       <div class="am-kv"><span>Tracks read</span><span id="kvItems">—</span></div>
       <div class="am-kv"><span>Unchanged / skipped</span><span id="kvSkipped">—</span></div>
       <div class="am-kv"><span>Values indexed</span><span id="kvValues">—</span></div>
@@ -2024,6 +2025,7 @@ function deleteValue(r) {
       }
       $('kvType').textContent = t;
     }
+    if ($('kvMapping')) { $('kvMapping').textContent = cfg.LastScanMapping || 'All mappings'; }
     if ($('kvItems')) { $('kvItems').textContent = cfg.LastScanItems == null ? '—' : cfg.LastScanItems; }
     if ($('kvSkipped')) { $('kvSkipped').textContent = cfg.LastScanSkipped == null ? '—' : cfg.LastScanSkipped; }
     if ($('kvValues')) { $('kvValues').textContent = cfg.LastScanValues == null ? '—' : cfg.LastScanValues; }
