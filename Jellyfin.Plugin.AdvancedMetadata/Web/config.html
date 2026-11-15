@@ -153,7 +153,11 @@
     .am-hide-sm { display: none; }
     #AdvancedMetadataConfigPage { padding: 14px 12px 110px; }
   }
-  #manageRows input[type="text"], #manageRows select {
+  .am-idxcell { white-space: nowrap; }
+  .am-idxnum { font-variant-numeric: tabular-nums; }
+  .am-idxmore { margin-left: 6px; text-decoration: none; font-size: 1em; }
+  .am-idxbrk { font-size: .78em; color: #8b949e; margin-top: 3px; white-space: normal; }
+    #manageRows input[type="text"], #manageRows select {
     width: 100%; box-sizing: border-box; background: #0a0d12; color: #e6edf3;
     border: 1px solid #52b54b; border-radius: 4px; padding: 5px 7px; font-size: 14px;
     font-family: inherit;
@@ -283,6 +287,11 @@
   <!-- ============ MANAGE ============ -->
   <div class="am-panel" data-panel="manage">
   <h2>Manage Mappings</h2>
+    <div class="am-hint" style="max-width:680px; margin-bottom:10px">
+      <strong>Indexed</strong> is the number of unique items with at least one value for that
+      mapping. Note: An item edited or deleted only counts once.
+      Press <span class="am-mono">⋯</span> for the breakdown by level and by edit state.
+    </div>
     <div class="am-tablewrap">
     <table class="am-table am-table-auto">
       <thead>
@@ -291,6 +300,7 @@
           <th data-sort="DisplayName">Display name</th>
           <th>Applies to</th>
           <th>Delimiters</th>
+          <th>Indexed</th>
           <th class="am-hide-sm" data-sort="CreatedUtc">Created</th>
           <th style="white-space:nowrap;">Actions</th>
         </tr>
@@ -1196,6 +1206,35 @@ function renderManage() {
           : (m.DelimiterMode === 'add' ? '+ ' : m.DelimiterMode === 'only' ? 'only ' : '\u2212 ') + m.Delimiters;
         tr.appendChild(tdDel2);
 
+        var tdIdx = document.createElement('td');
+        tdIdx.className = 'am-idxcell';
+        var idxNum = document.createElement('span');
+        idxNum.className = 'am-idxnum';
+        idxNum.textContent = (m.Items || 0).toLocaleString();
+        tdIdx.appendChild(idxNum);
+
+        var idxMore = document.createElement('button');
+        idxMore.className = 'am-link am-idxmore';
+        idxMore.textContent = '\u22EF';
+        idxMore.title = 'Breakdown';
+        idxMore.addEventListener('click', function () {
+          idxBrk.style.display = idxBrk.style.display === 'none' ? 'block' : 'none';
+        });
+        tdIdx.appendChild(idxMore);
+
+        var idxBrk = document.createElement('div');
+        idxBrk.className = 'am-idxbrk';
+        idxBrk.style.display = 'none';
+        var idxParts = [];
+        if (m.Artists) { idxParts.push(m.Artists + ' artist'); }
+        if (m.Albums) { idxParts.push(m.Albums + ' album'); }
+        if (m.Songs) { idxParts.push(m.Songs + ' song'); }
+        if (m.Edits) { idxParts.push(m.Edits + ' edited'); }
+        if (m.Deletes) { idxParts.push(m.Deletes + ' deleted'); }
+        idxBrk.textContent = idxParts.length ? idxParts.join(' · ') : 'nothing indexed';
+        tdIdx.appendChild(idxBrk);
+        tr.appendChild(tdIdx);
+
         var tdC2 = document.createElement('td');
         tdC2.className = 'am-hide-sm';
         tdC2.textContent = m.CreatedUtc ? new Date(m.CreatedUtc).toLocaleDateString() : '—';
@@ -1206,24 +1245,6 @@ function renderManage() {
         edit.className = 'am-act';
         edit.textContent = 'Edit';
         edit.addEventListener('click', function () { editingId = m.Id; renderManage(); });
-
-        var scanOne = document.createElement('button');
-        scanOne.className = 'am-act';
-        scanOne.textContent = 'Scan';
-        scanOne.title = 'Re-read every item for this mapping only';
-        scanOne.style.marginRight = '6px';
-        scanOne.addEventListener('click', function () {
-          if (!task) { setStatus('manageStatus', 'err', 'Scan task not found.'); return; }
-          cfg.PendingScanMappingId = m.Id;
-          cfg.PendingScanLibraryId = '';
-          cfg.FullRescanRequested = false;
-          saveConfig(cfg).then(function () {
-            return apiPost('ScheduledTasks/Running/' + task.Id);
-          }).then(function () {
-            setStatus('manageStatus', 'ok', 'Scanning "' + m.SourceTag + '" only. Watch progress on the Scan tab.');
-            setTimeout(refreshTask, 700);
-          }).catch(function (e) { setStatus('manageStatus', 'err', 'SCAN FAILED: ' + e.message); });
-        });
 
         var del = document.createElement('button');
         del.className = 'am-act am-act-danger';
@@ -1247,7 +1268,6 @@ function renderManage() {
             .catch(function (e) { setStatus('manageStatus', 'err', 'DELETE FAILED: ' + e.message); });
         });
 
-        tdA2.appendChild(scanOne);
         tdA2.appendChild(edit);
         tdA2.appendChild(del);
         tr.appendChild(tdA2);
