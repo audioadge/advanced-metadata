@@ -1947,9 +1947,11 @@ function deleteValue(r) {
         th.textContent = th.textContent.replace(/ [▲▼]$/, '') + (sortAsc ? ' ▲' : ' ▼');
         redrawData();
         loadData(false);
+        });
       });
-    });
-  }
+  
+      updatePathGate();
+    }
 
   /* ---------------- scan ---------------- */
 
