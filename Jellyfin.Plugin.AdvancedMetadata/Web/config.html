@@ -287,11 +287,6 @@
   <!-- ============ MANAGE ============ -->
   <div class="am-panel" data-panel="manage">
   <h2>Manage Mappings</h2>
-    <div class="am-hint" style="max-width:680px; margin-bottom:10px">
-      <strong>Indexed</strong> is the number of unique items with at least one value for that
-      mapping. Note: An item edited or deleted only counts once.
-      Press <span class="am-mono">⋯</span> for the breakdown by level and by edit state.
-    </div>
     <div class="am-tablewrap">
     <table class="am-table am-table-auto">
       <thead>
@@ -309,6 +304,15 @@
     </table>
     </div>
     <div id="manageEmpty" class="am-hint"></div>
+
+    <div class="am-card">
+      <strong>Indexed</strong>
+      <div class="am-hint" style="margin-top:6px">
+        <span class="am-mono">Indexed</span> is the number of unique items with at least one value for
+        that mapping. An item edited or deleted only counts once. Press
+        <span class="am-mono">⋯</span> for the breakdown by level and by edit state.
+      </div>
+    </div>
 
     <div class="am-card">
       <strong>Delimiters</strong>
@@ -1206,11 +1210,13 @@ function renderManage() {
           : (m.DelimiterMode === 'add' ? '+ ' : m.DelimiterMode === 'only' ? 'only ' : '\u2212 ') + m.Delimiters;
         tr.appendChild(tdDel2);
 
+        var st = fieldStats[String(m.SourceTag || '').toUpperCase()] || {};
+
         var tdIdx = document.createElement('td');
         tdIdx.className = 'am-idxcell';
         var idxNum = document.createElement('span');
         idxNum.className = 'am-idxnum';
-        idxNum.textContent = (m.Items || 0).toLocaleString();
+        idxNum.textContent = (st.Items || 0).toLocaleString();
         tdIdx.appendChild(idxNum);
 
         var idxMore = document.createElement('button');
@@ -1226,11 +1232,11 @@ function renderManage() {
         idxBrk.className = 'am-idxbrk';
         idxBrk.style.display = 'none';
         var idxParts = [];
-        if (m.Artists) { idxParts.push(m.Artists + ' artist'); }
-        if (m.Albums) { idxParts.push(m.Albums + ' album'); }
-        if (m.Songs) { idxParts.push(m.Songs + ' song'); }
-        if (m.Edits) { idxParts.push(m.Edits + ' edited'); }
-        if (m.Deletes) { idxParts.push(m.Deletes + ' deleted'); }
+        if (st.Artists) { idxParts.push(st.Artists + ' artist'); }
+        if (st.Albums) { idxParts.push(st.Albums + ' album'); }
+        if (st.Songs) { idxParts.push(st.Songs + ' song'); }
+        if (st.Edits) { idxParts.push(st.Edits + ' edited'); }
+        if (st.Deletes) { idxParts.push(st.Deletes + ' deleted'); }
         idxBrk.textContent = idxParts.length ? idxParts.join(' · ') : 'nothing indexed';
         tdIdx.appendChild(idxBrk);
         tr.appendChild(tdIdx);
@@ -1295,11 +1301,20 @@ function renderManage() {
 
   /* ---------------- data search ---------------- */
 
+  var fieldStats = {};
+
   function refreshDataFields() {
     var sel = $('dataField');
-    if (!sel) { return; }
-    var keep = sel.value;
     apiGet('AdvancedMetadataData/Fields').then(function (list) {
+      var stats = {};
+      (list || []).forEach(function (f) {
+        stats[String(f.Name || f.name || '').toUpperCase()] = f;
+      });
+      fieldStats = stats;
+      renderManage();
+
+      if (!sel) { return; }
+      var keep = sel.value;
       sel.innerHTML = '<option value="">— All mappings —</option>';
       (list || []).forEach(function (f) {
         var o = document.createElement('option');
@@ -1996,6 +2011,7 @@ function deleteValue(r) {
       } else {
         clearStatus('scanStatus');
       }
+      refreshDataFields();
     }
     wasRunning = running;
     scanRunning = running;
