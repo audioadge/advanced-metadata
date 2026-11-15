@@ -141,9 +141,12 @@ public class ScanTask : IScheduledTask
             backfill.Add(mappings[0].SourceTag);
         }
 
+        var mappingScopedName = mappingScoped && mappings.Count > 0 ? mappings[0].SourceTag : string.Empty;
+
         cfg.LastScanType = (full ? "Full Scan" : "Incremental Scan")
             + (scoped ? " — " + scopeName : string.Empty)
-            + (mappingScoped && mappings.Count > 0 ? " — mapping " + mappings[0].SourceTag : string.Empty);
+            + (mappingScopedName.Length > 0 ? " — mapping " + mappingScopedName : string.Empty);
+        cfg.LastScanMapping = mappingScopedName;
 
         plugin.UpdateConfiguration(cfg);
         cfg.LastScanBackfill = backfill.Count;
