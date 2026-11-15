@@ -155,7 +155,9 @@
   }
   .am-idxcell { white-space: nowrap; }
   .am-idxnum { font-variant-numeric: tabular-nums; }
-  .am-idxmore { margin-left: 6px; text-decoration: none; font-size: 1em; }
+  .am-idxmore { margin-left: 6px; background: none; border: 0; padding: 0 4px; cursor: pointer;
+                color: #58a6ff; font-size: 1em; line-height: 1; }
+  .am-idxmore:hover { color: #79b8ff; }
   .am-idxbrk { font-size: .78em; color: #8b949e; margin-top: 3px; white-space: normal; }
     #manageRows input[type="text"], #manageRows select {
     width: 100%; box-sizing: border-box; background: #0a0d12; color: #e6edf3;
@@ -321,7 +323,7 @@
       <div class="am-hint" style="margin-top:6px">
         <span class="am-mono">Indexed</span> is the number of unique items with at least one value for
         that mapping. An item edited or deleted only counts once. Press
-        <span class="am-mono">breakdown</span> for the count by level and by edit state.
+        <span class="am-idxmore" style="margin:0">▸</span> for the count by level and by edit state.
       </div>
     </div>
     <div class="am-actions">  
@@ -1221,10 +1223,13 @@ function renderManage() {
         tdIdx.appendChild(idxNum);
 
         var idxMore = document.createElement('button');
-        idxMore.className = 'am-link am-idxmore';
-        idxMore.textContent = 'breakdown';
+        idxMore.className = 'am-idxmore';
+        idxMore.textContent = '\u25B8';
         idxMore.addEventListener('click', function () {
-          idxBrk.style.display = idxBrk.style.display === 'none' ? 'block' : 'none';
+          var open = idxBrk.style.display === 'none';
+          idxBrk.style.display = open ? 'block' : 'none';
+          idxMore.textContent = open ? '\u25BE' : '\u25B8';
+          idxMore.title = open ? 'Hide breakdown' : 'Show breakdown';
         });
         tdIdx.appendChild(idxMore);
 
@@ -2111,11 +2116,12 @@ var LIB_TYPES = {
     sel.innerHTML = '<option value="">— All mappings —</option>';
     (cfg.Mappings || []).forEach(function (m) {
       var o = document.createElement('option');
-      o.value = m.Id;
+      o.value = m.SourceTag;
+      o.setAttribute('data-tag', m.SourceTag);
       o.textContent = m.DisplayName || m.SourceTag;
       sel.appendChild(o);
     });
-    sel.value = cfg.PendingScanMappingId || '';
+    sel.value = cfg.LastScanMapping || '';
   }
 
   function loadLibraries() {
@@ -2186,7 +2192,10 @@ var LIB_TYPES = {
     }
 
     var libVal = $('scanLibrary').value;
-    var mapVal = $('scanMapping') ? $('scanMapping').value : '';
+    var mapSel = $('scanMapping');
+    var mapVal = (mapSel && mapSel.selectedOptions && mapSel.selectedOptions[0])
+      ? (mapSel.selectedOptions[0].getAttribute('data-tag') || '')
+      : '';
 
     apiPost('AdvancedMetadataData/StartScan?library=' + encodeURIComponent(libVal)
             + '&mapping=' + encodeURIComponent(mapVal)
