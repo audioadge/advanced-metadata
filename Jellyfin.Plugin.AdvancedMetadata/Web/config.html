@@ -33,7 +33,7 @@
              font-size: 11px; font-weight: 700; cursor: help; }
   .am-hint { font-size: .84em; color: #8b949e; margin-top: 6px; }
 
-  #AdvancedMetadataConfigPage input[type="text"],
+.am-nest { border-left: 1px solid #30363d; }  #AdvancedMetadataConfigPage input[type="text"],
   #AdvancedMetadataConfigPage select {
     width: 100%; box-sizing: border-box; background: #0a0d12; color: #e6edf3;
     border: 1px solid #30363d; border-radius: 6px; padding: 10px 12px;
@@ -117,7 +117,9 @@
                padding: 2px 6px; font-size: .78em; cursor: pointer; font-family: inherit; }
   .am-letter:hover { border-color: #8b949e; }
   .am-letter.on { background: #2ecc71; border-color: #2ecc71; color: #10240f; font-weight: 600; }
-  .am-nest { border-left: 1px solid #30363d; }
+  .am-lvl-artist { border-left: 4px solid #52b54b; }
+  .am-lvl-album { border-left: 4px solid #2f81f7; }
+  .am-lvl-song { border-left: 4px solid #8b949e; }
   .am-added { font-size: .78em; color: #8b949e; margin-left: 8px; white-space: nowrap; }
   .am-addedcell { font-size: .8em; color: #8b949e; white-space: nowrap; }
   .am-actionscell { white-space: nowrap; text-align: right; }
@@ -1300,6 +1302,8 @@ function clearDataResults() {
     groupPath = '';
     chainsLoaded = 0;
     dataSearched = false;
+    dataCounts = { Artists: 0, Albums: 0, Songs: 0 };
+    updatePathGate();
     if ($('dataItem')) { $('dataItem').value = ''; }
     if ($('dataValue')) { $('dataValue').value = ''; }
     if ($('dataKind')) { $('dataKind').value = ''; }
@@ -1500,9 +1504,9 @@ function renderTree(rows) {
     var chain = null, aKey = null, bKey = null, cKey = null;
     var artistCard = null, albumCard = null, songCard = null;
 
-    function makeCard(depth, tagText, name, note, r) {
+    function makeCard(depth, lvl, tagText, name, note, r, parent) {
       var c = document.createElement('div');
-      c.className = 'am-itemgroup';
+      c.className = 'am-itemgroup am-lvl-' + lvl;
       c.style.marginLeft = (depth * 16) + 'px';
 
       var head = document.createElement('div');
@@ -1534,9 +1538,16 @@ function renderTree(rows) {
         meta.appendChild(trk);
       }
 
+      if (tagText === 'Song' && showPaths && r.Detail) {
+        var pth = document.createElement('span');
+        pth.className = 'am-artisttag am-mono';
+        pth.textContent = r.Detail;
+        meta.appendChild(pth);
+      }
+
       head.appendChild(meta);
       c.appendChild(head);
-      wrap.appendChild(c);
+      parent.appendChild(c);
       return c;
     }
 
@@ -1550,15 +1561,15 @@ function renderTree(rows) {
       if (r.ArtistKey !== aKey) {
         aKey = r.ArtistKey;
         artistCard = null; albumCard = null; songCard = null;
-        if (aKey) { artistCard = makeCard(0, 'Artist', r.Item, r.Item, r); }
+        if (aKey) { artistCard = makeCard(0, 'artist', 'Artist', r.Item, r.Item, r, wrap); }
       }
 
       if (r.AlbumKey !== bKey) {
         bKey = r.AlbumKey;
         albumCard = null; songCard = null;
         if (bKey) {
-          albumCard = makeCard(wantArtist ? 1 : 0, 'Album', r.Album || r.Item,
-            wantArtist ? '' : (r.Artist ? 'Artist: ' + r.Artist : ''), r);
+          albumCard = makeCard(wantArtist ? 1 : 0, 'album', 'Album', r.Album || r.Item,
+            wantArtist ? '' : (r.Artist ? 'Artist: ' + r.Artist : ''), r, artistCard || wrap);
         }
       }
 
@@ -1579,8 +1590,8 @@ function renderTree(rows) {
           var notes = [];
           if (!wantArtist && r.Artist) { notes.push('Artist: ' + r.Artist); }
           if (!wantAlbum && r.Album) { notes.push('Album: ' + r.Album); }
-          songCard = makeCard((wantArtist ? 1 : 0) + (wantAlbum ? 1 : 0), 'Song', r.Item,
-            notes.join(' · '), r);
+          songCard = makeCard((wantArtist ? 1 : 0) + (wantAlbum ? 1 : 0), 'song', 'Song', r.Item,
+            notes.join(' · '), r, albumCard || artistCard || wrap);
         }
       }
 
@@ -1593,8 +1604,14 @@ function redrawData() {
     var rows = applyFilter(dataRowsAll);
       $('dataTable').classList.toggle('hidepath', !$('chkPaths').checked);
   
-      $('dataCount').textContent = rows.length + ' result(s) shown'
-        + (dataTotal > rows.length ? ' of ' + dataTotal + ' — use Show more for the rest' : '');
+      var parts = [];
+        if (dataCounts.Artists) { parts.push(dataCounts.Artists + ' artist(s)'); }
+        if (dataCounts.Albums) { parts.push(dataCounts.Albums + ' album(s)'); }
+        if (dataCounts.Songs) { parts.push(dataCounts.Songs + ' song(s)'); }
+    
+        $('dataCount').textContent = (parts.length ? parts.join(', ') + ' — ' : '')
+          + rows.length + ' result(s) shown'
+          + (dataTotal > rows.length ? ' of ' + dataTotal + ' — use Show more for the rest' : '');
   
       if (groupPath) { renderTree(rows); } else { renderFlat(sortRows(rows)); }
       $('btnMore').style.display = (dataRowsAll.length < dataTotal) ? 'inline-block' : 'none';
@@ -1604,6 +1621,7 @@ function redrawData() {
   var groupPath = '';
   var chainsLoaded = 0;
   var dataSearched = false;
+  var dataCounts = { Artists: 0, Albums: 0, Songs: 0 };
   var TREE_PAGE = 200;
 
   var bulkSelected = [];
@@ -1622,6 +1640,14 @@ function redrawData() {
 
   function updateDir() {
     if ($('dataDir')) { $('dataDir').textContent = sortAsc ? '↑' : '↓'; }
+  }
+
+  function updatePathGate() {
+    var b = $('chkPaths');
+    if (!b) { return; }
+    var ok = !groupPath || groupPath.indexOf('Item') > -1;
+    b.disabled = !ok;
+    if (!ok) { b.checked = false; }
   }
 
   function buildLetters() {
@@ -1673,6 +1699,11 @@ function redrawData() {
           var groups = (res && res.Groups) || 0;
 
           dataTotal = (res && res.Total) || 0;
+          dataCounts = {
+            Artists: (res && res.Artists) || 0,
+            Albums: (res && res.Albums) || 0,
+            Songs: (res && res.Songs) || 0
+          };
           dataRowsAll = append ? dataRowsAll.concat(rows) : rows;
           dataOffset = dataRowsAll.length;
 
@@ -1808,6 +1839,7 @@ function deleteValue(r) {
       chainsLoaded = 0;
       dataRowsAll = [];
       if (groupPath) { sortKey = 'Artist'; sortAsc = true; updateDir(); }
+      updatePathGate();
       if (!dataSearched) { redrawData(); return; }
       loadData(false);
     });
