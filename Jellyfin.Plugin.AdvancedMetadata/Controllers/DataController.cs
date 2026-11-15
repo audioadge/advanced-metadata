@@ -325,7 +325,7 @@ public class DataController : ControllerBase
         if (ScanRunning()) { return Ok(new { Ok = false, Message = "A scan is already running." }); }
         if (Plugin.Instance is null) { return Ok(new { Ok = false, Message = "Plugin is not ready yet." }); }
 
-        Plugin.PendingScanMappingId = mapping ?? string.Empty;
+        Plugin.PendingScanMappingTag = mapping ?? string.Empty;
         Plugin.PendingScanLibraryId = library ?? string.Empty;
         Plugin.PendingFullRescan = full == true;
 
