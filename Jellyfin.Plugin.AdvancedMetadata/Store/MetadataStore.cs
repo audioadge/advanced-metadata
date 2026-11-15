@@ -10,7 +10,7 @@ using Microsoft.Data.Sqlite;
 
 namespace Jellyfin.Plugin.AdvancedMetadata.Store;
 
-public record FieldRow(string Name, string Display, string Hierarchy, int Items, int Values);
+public record FieldRow(string Name, string Display, string Hierarchy, int Items, int Values, int Artists, int Albums, int Songs, int Edits, int Deletes);
 
 public record OverrideRow(string JellyfinId, string Field, string OldValue, string NewValue, string CreatedUtc);
 
@@ -1061,7 +1061,12 @@ WHERE id > (SELECT MIN(id) FROM overrides o3
             cmd.CommandText = @"
 SELECT f.name, f.display, f.hierarchy,
        (SELECT COUNT(DISTINCT item_id) FROM vals WHERE field_id = f.id),
-       (SELECT COUNT(*) FROM vals WHERE field_id = f.id)
+       (SELECT COUNT(*) FROM vals WHERE field_id = f.id),
+       (SELECT COUNT(DISTINCT v.item_id) FROM vals v JOIN items i ON i.id = v.item_id WHERE v.field_id = f.id AND i.kind = 'MusicArtist'),
+       (SELECT COUNT(DISTINCT v.item_id) FROM vals v JOIN items i ON i.id = v.item_id WHERE v.field_id = f.id AND i.kind = 'MusicAlbum'),
+       (SELECT COUNT(DISTINCT v.item_id) FROM vals v JOIN items i ON i.id = v.item_id WHERE v.field_id = f.id AND i.kind = 'Audio'),
+       (SELECT COUNT(*) FROM overrides WHERE field = f.name AND new_value <> ''),
+       (SELECT COUNT(*) FROM overrides WHERE field = f.name AND new_value = '')
 FROM fields f
 ORDER BY f.name;";
             using var r = cmd.ExecuteReader();
@@ -1070,7 +1075,12 @@ ORDER BY f.name;";
                 rows.Add(new FieldRow(
                     r.GetString(0), r.GetString(1), r.GetString(2),
                     Convert.ToInt32(r.GetInt64(3), CultureInfo.InvariantCulture),
-                    Convert.ToInt32(r.GetInt64(4), CultureInfo.InvariantCulture)));
+                    Convert.ToInt32(r.GetInt64(4), CultureInfo.InvariantCulture),
+                    Convert.ToInt32(r.GetInt64(5), CultureInfo.InvariantCulture),
+                    Convert.ToInt32(r.GetInt64(6), CultureInfo.InvariantCulture),
+                    Convert.ToInt32(r.GetInt64(7), CultureInfo.InvariantCulture),
+                    Convert.ToInt32(r.GetInt64(8), CultureInfo.InvariantCulture),
+                    Convert.ToInt32(r.GetInt64(9), CultureInfo.InvariantCulture)));
             }
 
             return rows;
