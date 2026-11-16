@@ -315,7 +315,7 @@ public class ScanTask : IScheduledTask
                     }
 
                     var raw = ReadRawTags(path, mappings.Select(m => m.SourceTag)
-                        .Concat(new[] { "ARTIST", "ALBUMARTIST", "ALBUM", "TRACKNUMBER", "DISCNUMBER" }));
+                        .Concat(new[] { "ARTIST", "ALBUMARTIST", "ALBUM", "TRACKNUMBER", "DISCNUMBER" }), out var readable);
 
                     var albumId = ResolveAlbumId(item);
 
@@ -360,6 +360,12 @@ public class ScanTask : IScheduledTask
                         itemId = _store.UpsertItem(key, item.GetType().Name,
                             item.Name ?? Path.GetFileNameWithoutExtension(path), artist, album, path, mtime, size);
                         if (albumId.HasValue) { _store.SetItemParent(key, albumId.Value.ToString("N")); }
+
+                        var primaryArtist = GetArtists(item).FirstOrDefault();
+                        if (primaryArtist.Id != Guid.Empty)
+                        {
+                            _store.SetItemArtist(key, primaryArtist.Id.ToString("N"));
+                        }
                     }
                     catch (Exception ex)
                     {
@@ -389,7 +395,12 @@ public class ScanTask : IScheduledTask
                         if (mDelims.Length == 0) { mDelims = new[] { '/', '|', ';', ':' }; }
                         var vals = SplitValues(raw, m.SourceTag, mDelims);
 
-                        if (vals.Count == 0 && !full) { continue; }
+                        var reachesAlbums = m.Hierarchy.Contains("albums", StringComparison.OrdinalIgnoreCase);
+                        var reachesArtists = m.Hierarchy.Contains("artists", StringComparison.OrdinalIgnoreCase);
+
+                        // No values left means the tag was removed, so the stored ones have to go too.
+                        // Only an unreadable file is allowed to skip.
+                        if (vals.Count == 0 && !readable) { continue; }
 
                         try
                         {
@@ -400,21 +411,22 @@ public class ScanTask : IScheduledTask
                             _store.ApplyOverrides(key, m.SourceTag);
                             Interlocked.Add(ref values, vals.Count);
 
-                            if (vals.Count > 0 && albumId.HasValue
-                                && m.Hierarchy.Contains("albums", StringComparison.OrdinalIgnoreCase))
+                            if (albumId.HasValue && reachesAlbums)
                             {
                                 var aid = albumId.Value.ToString("N");
                                 var albumName = album ?? item.Name ?? "Unknown album";
                                 var albumBy = albumArtist ?? artist ?? albumName;
-                                var tid = _store.UpsertItem(aid, "MusicAlbum", albumName, albumBy, albumName, null, 0, 0);
+                                _store.UpsertItem(aid, "MusicAlbum", albumName, albumBy, albumName, null, 0, 0);
                                 var link = albumArtistLinks.FirstOrDefault();
                                 if (!string.IsNullOrWhiteSpace(link.Name)) { _store.SetItemArtist(aid, ArtistItemId(link)); }
-                                        Interlocked.Increment(ref rolled);
-                                _store.AddValues(tid, m.SourceTag, vals);
+                                if (vals.Count > 0) { Interlocked.Increment(ref rolled); }
+
+                                // Derived from the tracks, so a value gone from all of them goes here too.
+                                _store.RebuildRollup(aid, m.SourceTag, false);
                                 _store.ApplyOverrides(aid, m.SourceTag);
                             }
 
-                            if (vals.Count > 0 && m.Hierarchy.Contains("artists", StringComparison.OrdinalIgnoreCase))
+                            if (reachesArtists && (vals.Count > 0 || reachesAlbums))
                             {
                                 var names = new List<(Guid Id, string? Name)>(GetArtists(item));
 
@@ -434,7 +446,15 @@ public class ScanTask : IScheduledTask
                                     var an = string.IsNullOrWhiteSpace(a.Name) ? (artist ?? "Unknown artist") : a.Name;
                                     var aid = ArtistItemId(a);
                                     var tid = _store.UpsertItem(aid, "MusicArtist", an, an, null, null, 0, 0);
-                                    _store.AddValues(tid, m.SourceTag, vals);
+                                    if (reachesAlbums)
+                                    {
+                                        _store.RebuildRollup(aid, m.SourceTag, true);
+                                    }
+                                    else
+                                    {
+                                        _store.AddValues(tid, m.SourceTag, vals);
+                                    }
+
                                     _store.ApplyOverrides(aid, m.SourceTag);
                                 }
                             }
@@ -618,8 +638,9 @@ public class ScanTask : IScheduledTask
         }
     }
 
-   private static Dictionary<string, List<string>> ReadRawTags(string path, IEnumerable<string> tags)
+   private static Dictionary<string, List<string>> ReadRawTags(string path, IEnumerable<string> tags, out bool ok)
     {
+        ok = false;
         var wanted = tags
             .Where(t => !string.IsNullOrWhiteSpace(t))
             .Select(t => t.Trim())
@@ -671,6 +692,8 @@ public class ScanTask : IScheduledTask
                     if (field is not null) { list.AddRange(field); }
                 }
             }
+
+            ok = true;
         }
         catch
         {
