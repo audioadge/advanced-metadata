@@ -336,6 +336,25 @@ public class DataController : ControllerBase
         return Ok(new { Ok = true });
     }
 
+    [HttpPost("ResetScanOptions")]
+    public ActionResult ResetScanOptions()
+    {
+        var cfg = Plugin.Instance?.Configuration;
+        if (cfg is null) { return Ok(new { Ok = false }); }
+
+        cfg.ScanLibraryId = string.Empty;
+        cfg.PendingScanLibraryId = string.Empty;
+        cfg.PendingScanMappingId = string.Empty;
+        cfg.FullRescanRequested = false;
+        Plugin.Instance!.UpdateConfiguration(cfg);
+
+        Plugin.PendingScanLibraryId = string.Empty;
+        Plugin.PendingScanMappingTag = string.Empty;
+        Plugin.PendingFullRescan = false;
+
+        return Ok(new { Ok = true });
+    }
+
     [HttpGet("Overrides")]
     public ActionResult Overrides()
         => Ok(_store.ListOverrides());
