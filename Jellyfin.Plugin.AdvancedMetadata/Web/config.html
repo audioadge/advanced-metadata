@@ -353,7 +353,6 @@
   <div class="am-panel" data-panel="data">
     <h2>Manage Data</h2>
     <p style="max-width:680px">
-  <p style="max-width:680px">
       This tool shows the data that has been mapped from plugin scans. It is stored in the plugin's
       internal database and is <strong>NOT</strong> in Jellyfin's core.
     </p>
@@ -361,7 +360,6 @@
       Every result row has <strong>Edit</strong> and <strong>Delete</strong> links. Editing or deleting
       a value changes only the plugin's index — <strong>your audio files are never modified</strong>,
       and the change survives future scans.
-    </p>
     </p>
 
     <h3>Search by content item</h3>
@@ -2272,6 +2270,7 @@ var LIB_TYPES = {
         })
         .catch(function (e) { setStatus('scanStatus', 'err', 'STOP FAILED: ' + e.message); });
     });
+  }
 
   /* ---------------- advanced ---------------- */
 
