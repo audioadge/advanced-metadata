@@ -515,19 +515,6 @@ CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL);");
             return Convert.ToInt32(cmd.ExecuteScalar(), CultureInfo.InvariantCulture);
         });
 
-    /// <summary>How many values an item currently holds for one field.</summary>
-    public int CountValues(long itemId, string field)
-        => Read(c =>
-        {
-            var fid = FieldIdFor(c, field);
-            if (fid == 0) { return 0; }
-            using var cmd = c.CreateCommand();
-            cmd.CommandText = "SELECT COUNT(*) FROM vals WHERE item_id=$i AND field_id=$f;";
-            cmd.Parameters.AddWithValue("$i", itemId);
-            cmd.Parameters.AddWithValue("$f", fid);
-            return Convert.ToInt32(cmd.ExecuteScalar(), CultureInfo.InvariantCulture);
-        });
-
     public void ReplaceFieldValues(long itemId, string field, IEnumerable<string> values)
         => Write(c =>
         {
