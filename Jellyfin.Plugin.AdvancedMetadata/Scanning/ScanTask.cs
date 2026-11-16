@@ -662,6 +662,32 @@ public class ScanTask : IScheduledTask
                 var up = name.ToUpperInvariant();
                 var list = result[name];
 
+                // The file's own tag wins. A FLAC or OGG carries a Vorbis comment, and a stray
+                // ID3v2 block beside it often still holds frames that have already been deleted,
+                // so reading the combined tag resurrects them.
+                if (xiph is not null)
+                {
+                    var field = xiph.GetField(up);
+                    if (field is not null) { list.AddRange(field); }
+
+                    if (up == "TRACKNUMBER" && list.Count == 0 && t.Track > 0)
+                    {
+                        list.Add(t.Track.ToString(CultureInfo.InvariantCulture));
+                    }
+
+                    if (up == "DISCNUMBER" && list.Count == 0 && t.Disc > 0)
+                    {
+                        list.Add(t.Disc.ToString(CultureInfo.InvariantCulture));
+                    }
+
+                    if (up == "YEAR" && list.Count == 0 && t.Year > 0)
+                    {
+                        list.Add(t.Year.ToString(CultureInfo.InvariantCulture));
+                    }
+
+                    continue;
+                }
+
                 switch (up)
                 {
                     case "ARTIST": list.AddRange(t.Performers); break;
@@ -684,12 +710,6 @@ public class ScanTask : IScheduledTask
                             list.AddRange(frame.Text);
                         }
                     }
-                }
-
-                if (xiph is not null)
-                {
-                    var field = xiph.GetField(up);
-                    if (field is not null) { list.AddRange(field); }
                 }
             }
 
