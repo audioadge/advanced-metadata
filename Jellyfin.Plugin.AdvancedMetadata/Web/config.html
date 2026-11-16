@@ -22,10 +22,6 @@
   .am-panel { display: none; }
   .am-panel.active { display: block; }
 
-  .am-diag { font-size: .78em; color: #6e7781; font-family: ui-monospace, Menlo, Consolas, monospace;
-             padding: 6px 0 16px; word-break: break-all; }
-  .am-diag b { color: #8b949e; font-weight: 600; }
-
   .am-field { margin-bottom: 18px; max-width: 560px; }
   .am-label { display: flex; align-items: center; gap: 8px; font-weight: 600; margin-bottom: 7px; color: #e6edf3; }
   .am-help { display: inline-flex; align-items: center; justify-content: center; width: 17px; height: 17px;
@@ -185,8 +181,6 @@
     <span class="am-scanbanner-txt" id="amScanBannerText">Scanning…</span>
     <button id="amScanBannerStop" class="am-act">Stop</button>
   </div>
-
-  <div id="amDiag" class="am-diag">Starting…</div>
 
   <!-- ============ CREATE ============ -->
   <div class="am-panel active" data-panel="create">
@@ -582,10 +576,6 @@
       <div class="am-kv"><span>Index size</span><span id="kvSize">—</span></div>
     </div>
     <div id="sizeWarning" class="am-status warn" style="max-width:680px"></div>
-    <label class="am-checkrow" style="font-size:.9em; margin-top:10px">
-      <input id="chkDiag" type="checkbox" />
-      <span>Show the diagnostics line</span>
-    </label>
 
     <h3>Tag Delimiters</h3>
     <div class="am-field">
@@ -693,9 +683,9 @@
   var cfg = null;
   var task = null;
   var scanRunning = false;
-  var tokenInfo = { value: null, source: null, done: false };
-  var idCache = null;
-  var unhidInfo = '';
+ var tokenInfo = { value: null, source: null, done: false };
+  var clientVersion = '1.0.0';
+ var idCache = null;
 
   var dataMode = 'field';
   var dataOffset = 0;
@@ -806,7 +796,7 @@
     if (t) {
       h['X-Emby-Token'] = t;
       h['Authorization'] = 'MediaBrowser Token="' + t
-        + '", Client="Advanced Metadata", Device="Web", DeviceId="advmeta-web", Version="0.2.11"';
+        + '", Client="Advanced Metadata", Device="Web", DeviceId="advmeta-web", Version="' + clientVersion + '"';
     }
     if (json) { h['Content-Type'] = 'application/json'; }
     return h;
@@ -896,16 +886,6 @@
     if (!iso) { return '—'; }
     var d = new Date(iso);
     return isNaN(d.getTime()) ? '—' : d.toLocaleDateString();
-  }
-
-  function diag(extra) {
-    var el = $('amDiag');
-    if (!el) { return; }
-    var t = findToken();
-    el.innerHTML = '<b>auth:</b> ' + (t ? 'found via ' + tokenInfo.source : 'NOT FOUND')
-      + ' &nbsp;·&nbsp; <b>ApiClient:</b> ' + (client() ? 'present' : 'absent')
-      + ' &nbsp;·&nbsp; <b>pluginId:</b> ' + (idCache ? idCache.substring(0, 8) + '…' : 'resolving')
-      + (extra ? ' &nbsp;·&nbsp; <b>' + extra + '</b>' : '');
   }
 
  function disableLinks(off) {
@@ -2021,7 +2001,10 @@ function deleteValue(r) {
       if (ended === 'Cancelled') {
         setStatus('scanStatus', 'warn', 'Scan stopped. The values indexed so far are kept.');
       } else if (ended === 'Complete') {
-        setStatus('scanStatus', 'ok', 'Scan complete — ' + (cfg.LastScanValues || 0) + ' value(s) indexed.');
+        var idx = cfg.LastScanValues || 0;
+        var rem = cfg.LastScanRemoved || 0;
+        setStatus('scanStatus', 'ok', 'Scan complete — ' + idx + ' value(s) indexed'
+          + (rem ? ', ' + rem + ' removed' : '') + '.');
       } else if (ended === 'Failed To Execute') {
         setStatus('scanStatus', 'err', 'Scan failed. See the Last scan card below.');
       } else {
@@ -2283,6 +2266,7 @@ var LIB_TYPES = {
           : 'Never restored';
       }
       if ($('kvStorePath')) { $('kvStorePath').textContent = i.StorePath || '—'; }
+     if (i.Version) { clientVersion = i.Version; }
      if (i.Version) {
         var seen = window.localStorage.getItem('amSeenVersion');
         if (!seen || seen !== i.Version) { window.amShowTab('create'); }
@@ -2307,23 +2291,6 @@ var LIB_TYPES = {
         }
       }
     }).catch(function () { /* ignore */ });
-  }
-
-function applyDiagVisibility() {
-    var el = $('amDiag');
-    if (!el) { return; }
-    var on = window.localStorage.getItem('amShowDiag') === '1';
-    el.style.display = on ? 'block' : 'none';
-  }
-
-  function wireDiag() {
-    var box = $('chkDiag');
-    if (!box) { return; }
-    box.checked = window.localStorage.getItem('amShowDiag') === '1';
-    box.addEventListener('change', function () {
-      window.localStorage.setItem('amShowDiag', box.checked ? '1' : '0');
-      applyDiagVisibility();
-    });
   }
   
  function refreshBackupGate() {
@@ -2475,7 +2442,6 @@ function applyDiagVisibility() {
       renderScanSummary();
       loadInfo();
       refreshDataFields();
-      diag('config loaded');
     });
   }
 
@@ -2484,15 +2450,12 @@ function applyDiagVisibility() {
       if (!$('AdvancedMetadataConfigPage')) { setTimeout(init, 200); return; }
 
       unhideAncestors();
-      unhidInfo = 'ok';
 
-     [wireCreate, wireManage, wireData, wireScan, wireAdvanced, wireBackup, wireDiag, watchRoute, applyDiagVisibility].forEach(function (fn) {
+    [wireCreate, wireManage, wireData, wireScan, wireAdvanced, wireBackup, watchRoute].forEach(function (fn) {
         try {
           fn();
             } catch (e) { console.error('Advanced Metadata: wiring failed in', fn.name, e); }
           });
-      diag('wiring done');
-
       document.addEventListener('click', onNavClick, true);
       window.addEventListener('hashchange', watchRoute);
       window.addEventListener('popstate', watchRoute);
@@ -2505,16 +2468,15 @@ function applyDiagVisibility() {
       loadConfig().then(function () {
         refreshTask();
         setInterval(function () {
+          if (document.hidden) { return; }
           watchRoute();
           refreshTask();
-          if (scanRunning) { loadConfig().then(renderScanState); }
+          if (scanRunning && !editingId) { loadConfig().then(renderScanState); }
         }, 2500);
       }).catch(function (e) {
-        diag('config FAILED');
         setStatus('createStatus', 'err', 'Could not load configuration: ' + e.message);
       });
     } catch (e) {
-      diag('script error');
       setStatus('createStatus', 'err', 'Script error: ' + e.message);
     }
   }
