@@ -33,6 +33,7 @@ public class PluginConfiguration : BasePluginConfiguration
     public string LastScanStage { get; set; } = string.Empty;
     public string LastScanType { get; set; } = string.Empty;
     public string LastScanLibrary { get; set; } = string.Empty;
+    public int LastScanRemoved { get; set; }
     public string LastScanMapping { get; set; } = string.Empty;
     public string LastScanSummary { get; set; } = string.Empty;
     public DateTime? LastScanStartedUtc { get; set; }
