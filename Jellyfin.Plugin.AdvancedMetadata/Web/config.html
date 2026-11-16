@@ -1293,13 +1293,21 @@ function renderManage() {
             .catch(function (e) { setStatus('manageStatus', 'err', 'DELETE FAILED: ' + e.message); });
         });
 
-        tdA2.appendChild(edit);
+       tdA2.appendChild(edit);
         tdA2.appendChild(del);
         tr.appendChild(tdA2);
       }
 
       body.appendChild(tr);
     });
+
+    // A scan rebuilds this table on every poll; keep everything in its disabled state.
+    if (scanRunning) {
+      disableLinks(true);
+      Array.prototype.forEach.call(body.querySelectorAll('input, select, .am-act'), function (e) {
+        e.disabled = true;
+      });
+    }
   }
 
   function wireManage() {
@@ -2294,7 +2302,7 @@ var LIB_TYPES = {
       if ($('kvStorePath')) { $('kvStorePath').textContent = i.StorePath || '—'; }
      if (i.Version) {
         var seen = window.localStorage.getItem('amSeenVersion');
-        if (seen && seen !== i.Version) { window.amShowTab('create'); }
+        if (!seen || seen !== i.Version) { window.amShowTab('create'); }
         window.localStorage.setItem('amSeenVersion', i.Version);
       }
       if ($('kvSchema')) { $('kvSchema').textContent = i.Schema || '—'; }
@@ -3005,5 +3013,22 @@ function applyDiagVisibility() {
 })();
 </script>
 <!-- ===== end 0.3.16.0 ===== -->
+
+<!-- ===== scan banner layout and Show More clearance ===== -->
+<style>
+  .am-scanbanner { top: 56px !important; left: 0; right: 0; box-sizing: border-box;
+    padding: 12px 24px !important; justify-content: center !important;
+    align-items: center; gap: 16px; border-bottom: 1px solid #30363d;
+    box-shadow: 0 4px 12px rgba(0,0,0,.45); font-size: .94em; }
+  .am-scanbanner-txt { text-align: center; }
+  .am-scanbanner .am-act { flex: 0 0 auto; }
+  #btnMore { margin-bottom: 26px; }
+  @media (max-width: 760px) {
+    .am-scanbanner { top: 52px !important; padding: 10px 14px !important; gap: 10px;
+      font-size: .88em; justify-content: space-between !important; }
+    .am-scanbanner-txt { text-align: left; }
+    #AdvancedMetadataConfigPage { padding-bottom: 220px !important; }
+  }
+</style>
   
 </div>
