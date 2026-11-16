@@ -769,6 +769,44 @@ CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL);");
             cmd.ExecuteNonQuery();
         });
     
+    /// <summary>
+    /// Rebuilds a rolled-up row's values for one field from the rows beneath it, so a value that
+    /// has been removed from every child also disappears from the parent.
+    /// </summary>
+    public void RebuildRollup(string parentId, string field, bool fromAlbums)
+        => Write(c =>
+        {
+            var fid = FieldId(c, field);
+            if (fid == 0) { return; }
+
+            long parentItemId;
+            using (var idc = c.CreateCommand())
+            {
+                idc.CommandText = "SELECT id FROM items WHERE jellyfin_id=$j;";
+                idc.Parameters.AddWithValue("$j", parentId);
+                var found = idc.ExecuteScalar();
+                if (found is null or DBNull) { return; }
+                parentItemId = (long)found;
+            }
+
+            using (var del = c.CreateCommand())
+            {
+                del.CommandText = "DELETE FROM vals WHERE item_id=$i AND field_id=$f;";
+                del.Parameters.AddWithValue("$i", parentItemId);
+                del.Parameters.AddWithValue("$f", fid);
+                del.ExecuteNonQuery();
+            }
+
+            using var ins = c.CreateCommand();
+            ins.CommandText = "INSERT OR IGNORE INTO vals(item_id, field_id, value) "
+                + "SELECT DISTINCT $i, $f, v.value FROM vals v JOIN items i ON i.id = v.item_id "
+                + "WHERE v.field_id=$f AND i." + (fromAlbums ? "artist_id" : "parent_id") + "=$j;";
+            ins.Parameters.AddWithValue("$i", parentItemId);
+            ins.Parameters.AddWithValue("$f", fid);
+            ins.Parameters.AddWithValue("$j", parentId);
+            ins.ExecuteNonQuery();
+        });
+
     /// <summary>Records which album a track belongs to, so album-level reverts can find its tracks.</summary>
     public void SetItemParent(string jellyfinId, string parentId)
         => Write(c =>
