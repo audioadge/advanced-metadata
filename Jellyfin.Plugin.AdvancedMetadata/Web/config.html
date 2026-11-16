@@ -533,6 +533,7 @@
       <div class="am-kv"><span>Tracks read</span><span id="kvItems">—</span></div>
       <div class="am-kv"><span>Unchanged / skipped</span><span id="kvSkipped">—</span></div>
       <div class="am-kv"><span>Values indexed</span><span id="kvValues">—</span></div>
+      <div class="am-kv"><span>Values removed</span><span id="kvRemoved">—</span></div>
       <div class="am-kv"><span>Errors</span><span id="kvErrors">—</span></div>
       <div class="am-kv"><span>Started</span><span id="kvStarted">—</span></div>
       <div class="am-kv"><span>Finished</span><span id="kvFinished">—</span></div>
@@ -2068,13 +2069,19 @@ function deleteValue(r) {
     }
     if ($('kvLibrary')) { $('kvLibrary').textContent = cfg.LastScanLibrary || 'All libraries'; }
     if ($('kvMapping')) {
-      $('kvMapping').textContent = cfg.LastScanMapping === 'unresolved'
-        ? 'requested mapping no longer exists'
-        : (cfg.LastScanMapping || 'All mappings');
+      if (!cfg.LastScanMapping) {
+        $('kvMapping').textContent = 'All mappings';
+      } else {
+        var mm = (cfg.Mappings || []).filter(function (x) {
+          return String(x.SourceTag || '').toUpperCase() === String(cfg.LastScanMapping).toUpperCase();
+        })[0];
+        $('kvMapping').textContent = (mm && mm.DisplayName) || cfg.LastScanMapping;
+      }
     }
     if ($('kvItems')) { $('kvItems').textContent = cfg.LastScanItems == null ? '—' : cfg.LastScanItems; }
     if ($('kvSkipped')) { $('kvSkipped').textContent = cfg.LastScanSkipped == null ? '—' : cfg.LastScanSkipped; }
     if ($('kvValues')) { $('kvValues').textContent = cfg.LastScanValues == null ? '—' : cfg.LastScanValues; }
+    if ($('kvRemoved')) { $('kvRemoved').textContent = cfg.LastScanRemoved == null ? '—' : cfg.LastScanRemoved; }
     if ($('kvErrors')) { $('kvErrors').textContent = cfg.LastScanErrors == null ? '—' : cfg.LastScanErrors; }
     if ($('kvStarted')) { $('kvStarted').textContent = fmt(cfg.LastScanStartedUtc); }
     if ($('kvFinished')) { $('kvFinished').textContent = fmt(cfg.LastScanFinishedUtc); }
