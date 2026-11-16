@@ -101,6 +101,7 @@ public class ScanTask : IScheduledTask
         cfg.LastScanItems = 0;
         cfg.LastScanSkipped = 0;
         cfg.LastScanValues = 0;
+        cfg.LastScanRemoved = 0;
         cfg.LastScanErrors = 0;
         cfg.LastScanBackfill = 0;
         cfg.LastScanTotal = 0;
@@ -116,6 +117,10 @@ public class ScanTask : IScheduledTask
             .GroupBy(m => m.SourceTag.Trim(), StringComparer.OrdinalIgnoreCase)
             .Select(g => g.First())
             .ToList();
+
+        // SyncMappings prunes anything missing, so it must always see every mapping,
+        // even when this run is scoped to one.
+        var forSync = mappings.ToList();
 
         if (mappings.Count != declared.Count)
         {
@@ -175,7 +180,7 @@ public class ScanTask : IScheduledTask
                 : cfg.Delimiters.ToCharArray();
 
             Stage("Pruning and syncing mappings");
-            _store.SyncMappings(mappings);
+            _store.SyncMappings(forSync);
 
             // A scoped full rescan clears per item in the loop, so other libraries keep their values.
             if (full && !scoped)
@@ -236,6 +241,7 @@ public class ScanTask : IScheduledTask
            var done = 0;
             var skipped = 0;
             var values = 0;
+            var removed = 0;
             var errors = 0;
             var rolled = 0;
             var startedAt = DateTime.UtcNow;
@@ -387,7 +393,10 @@ public class ScanTask : IScheduledTask
 
                         try
                         {
+                            var hadValues = _store.CountValues(itemId, m.SourceTag);
                             _store.ReplaceFieldValues(itemId, m.SourceTag, vals);
+                            var nowValues = _store.CountValues(itemId, m.SourceTag);
+                            if (nowValues < hadValues) { Interlocked.Add(ref removed, hadValues - nowValues); }
                             _store.ApplyOverrides(key, m.SourceTag);
                             Interlocked.Add(ref values, vals.Count);
 
@@ -448,6 +457,7 @@ public class ScanTask : IScheduledTask
            finally
             {
                 cfg.LastScanValues = values;
+                cfg.LastScanRemoved = removed;
                 cfg.LastScanSkipped = skipped;
                 cfg.LastScanErrors = errors;
                 cfg.LastScanItems = done;
@@ -457,10 +467,13 @@ public class ScanTask : IScheduledTask
 
             progress.Report(100);
             cfg.LastScanStage = "Complete";
-            cfg.KnownMappingIds = mappings.Select(m => m.Id).ToList();
+            var knownNow = cfg.KnownMappingIds.ToList();
+            foreach (var m in mappings) { if (!knownNow.Contains(m.Id)) { knownNow.Add(m.Id); } }
+            cfg.KnownMappingIds = knownNow;
             cfg.LastScanItems = done;
             cfg.LastScanSkipped = skipped;
             cfg.LastScanValues = values;
+            cfg.LastScanRemoved = removed;
             cfg.LastScanErrors = errors;
             cfg.LastScanFinishedUtc = DateTime.UtcNow;
             cfg.LastScanStatus = "Complete";
