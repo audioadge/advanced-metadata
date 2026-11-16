@@ -151,8 +151,15 @@
   #AdvancedMetadataConfigPage input[type="file"] { color: #c9d1d9; font-family: inherit; font-size: 14px; }
   @media (max-width: 760px) {
     .am-hide-sm { display: none; }
-    #AdvancedMetadataConfigPage { padding: 14px 12px 110px; }
+    #AdvancedMetadataConfigPage { padding: 14px 12px 190px; }
+    #btnMore { margin-bottom: 48px; }
   }
+  .am-scanbanner { position: fixed; top: 0; left: 0; right: 0; z-index: 60;
+                   display: flex; align-items: center; gap: 12px;
+                   background: #16240f; border-bottom: 2px solid #52b54b; color: #b9e7b3;
+                   padding: 9px 16px; font-size: .9em; }
+  .am-scanbanner-txt { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #AdvancedMetadataConfigPage.am-scanning { padding-top: 58px; }
   .am-idxcell { white-space: nowrap; }
   .am-idxnum { font-variant-numeric: tabular-nums; }
   .am-idxmore { margin-left: 6px; background: none; border: 0; padding: 0 4px; cursor: pointer;
@@ -172,6 +179,11 @@
     <button class="am-tab" role="tab" data-tab="data"     aria-selected="false" onclick="amShowTab('data')">Manage Data</button>
     <button class="am-tab" role="tab" data-tab="manage"   aria-selected="false" onclick="amShowTab('manage')">Manage Mappings</button>
     <button class="am-tab" role="tab" data-tab="advanced" aria-selected="false" onclick="amShowTab('advanced')">Advanced</button>
+  </div>
+
+  <div id="amScanBanner" class="am-scanbanner" style="display:none">
+    <span class="am-scanbanner-txt" id="amScanBannerText">Scanning…</span>
+    <button id="amScanBannerStop" class="am-act">Stop</button>
   </div>
 
   <div id="amDiag" class="am-diag">Starting…</div>
@@ -505,6 +517,7 @@
     <div class="am-actions">
       <button id="btnScan" class="am-btn am-btn-primary">Start Scan</button>
       <button id="btnCancel" class="am-btn am-btn-danger">Stop Scan</button>
+      <button id="btnResetScanOpts" class="am-btn">Reset Selections</button>
     </div>
     <div id="scanStatus" class="am-status"></div>
 
@@ -2001,6 +2014,7 @@ function deleteValue(r) {
     if (!task) {
       $('scanText').textContent = 'Scheduled task not found. Try restarting Jellyfin.';
       $('btnScan').disabled = true;
+      setScanBanner(false, '');
       refreshBackupGate();
       return;
     }
@@ -2029,11 +2043,12 @@ function deleteValue(r) {
       var total = cfg.LastScanTotal || 0;
       var done = cfg.LastScanItems || 0;
       var stage = cfg.LastScanStage || '';
-      $('scanText').textContent = stage
-        ? stage + (total ? ' — ' + done + ' / ' + total : '')
-        : 'Scanning… ' + done + (total ? ' / ' + total : '') + ' tracks'
-          + (pct == null ? '' : ' — ' + Math.round(pct) + '%');
+      var line = (stage || 'Scanning') + (total ? ' — ' + done + ' / ' + total : '')
+        + (pct == null ? '' : ' — ' + Math.round(pct) + '%');
+      $('scanText').textContent = line;
+      setScanBanner(true, line);
     } else {
+      setScanBanner(false, '');
       var last = task.LastExecutionResult;
       if (last && last.Status) {
         var when = last.EndTimeUtc ? new Date(last.EndTimeUtc).toLocaleString() : '';
@@ -2086,6 +2101,14 @@ function deleteValue(r) {
     if ($('kvStarted')) { $('kvStarted').textContent = fmt(cfg.LastScanStartedUtc); }
     if ($('kvFinished')) { $('kvFinished').textContent = fmt(cfg.LastScanFinishedUtc); }
     if ($('kvLastFull')) { $('kvLastFull').textContent = fmt(cfg.LastFullScanUtc); }
+  }
+
+  function setScanBanner(on, text) {
+    var bar = $('amScanBanner');
+    var page = $('AdvancedMetadataConfigPage');
+    if (bar) { bar.style.display = on ? 'flex' : 'none'; }
+    if (page) { page.classList.toggle('am-scanning', on); }
+    if (on && $('amScanBannerText')) { $('amScanBannerText').textContent = text; }
   }
 
   var wasRunning = false;
@@ -2182,6 +2205,19 @@ var LIB_TYPES = {
   }
 
   function wireScan() {
+    $('amScanBannerStop').addEventListener('click', function () {
+      if ($('btnCancel')) { $('btnCancel').click(); }
+    });
+
+    $('btnResetScanOpts').addEventListener('click', function () {
+      apiPost('AdvancedMetadataData/ResetScanOptions').then(function () {
+        if ($('scanLibrary')) { $('scanLibrary').value = ''; }
+        if ($('scanMapping')) { $('scanMapping').value = ''; }
+        if ($('chkFull')) { $('chkFull').checked = false; }
+        setStatus('scanStatus', 'ok', 'Library and mapping selections cleared.');
+      }).catch(function (e) { setStatus('scanStatus', 'err', 'RESET FAILED: ' + e.message); });
+    });
+
     $('btnScan').addEventListener('click', function () {
       if (!task) { return; }
       if ($('chkFull').checked && !window.confirm(
