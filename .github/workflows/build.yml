@@ -2,7 +2,7 @@ name: Build plugin
 
 on:
   push:
-    tags: ['v*']
+    tags: ['v*', 'p*']
   workflow_dispatch:
 
 concurrency:
@@ -22,10 +22,15 @@ jobs:
 
       - name: Determine version
         run: |
-          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
-            echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+          if [[ "${GITHUB_REF}" == refs/tags/v* || "${GITHUB_REF}" == refs/tags/p* ]]; then
+            echo "VERSION=${GITHUB_REF_NAME#[vp]}" >> "$GITHUB_ENV"
           else
             echo "VERSION=0.0.0.1" >> "$GITHUB_ENV"
+          fi
+          if [[ "${GITHUB_REF_NAME}" == p* ]]; then
+            echo "MANIFEST=dev-manifest.json" >> "$GITHUB_ENV"
+          else
+            echo "MANIFEST=manifest.json" >> "$GITHUB_ENV"
           fi
 
       - name: Set up .NET 10
@@ -49,23 +54,25 @@ jobs:
         with:
           name: advanced-metadata
           path: advanced-metadata.zip
+          retention-days: 7
 
       - name: Create release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v3
         with:
           files: advanced-metadata.zip
+          prerelease: ${{ startsWith(github.ref_name, 'p') }}
 
       - name: Update manifest
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/')
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
+          VERSION="${GITHUB_REF_NAME#[vp]}"
           MD5=$(md5sum advanced-metadata.zip | cut -d' ' -f1 | tr '[:lower:]' '[:upper:]')
           git config user.name github-actions
           git config user.email actions@github.com
           git fetch origin main
           git checkout main
-          cat > manifest.json <<EOF
+          cat > "$MANIFEST" <<EOF
           [
             {
               "guid": "3f8b2c41-9a7d-4e5b-8c1a-6d2e4f7a9b03",
@@ -89,6 +96,6 @@ jobs:
             }
           ]
           EOF
-          git add manifest.json
-          git commit -m "Update manifest to ${VERSION}" || true
+          git add "$MANIFEST"
+          git commit -m "Update $MANIFEST to ${VERSION}" || true
           git push origin main
