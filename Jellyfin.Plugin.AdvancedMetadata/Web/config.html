@@ -1359,13 +1359,15 @@ function clearDataResults() {
     dataRowsAll = [];
     dataOffset = 0;
     dataTotal = 0;
-    if ($('dataFilter')) { $('dataFilter').value = ''; }
-    if ($('dataView')) { $('dataView').value = ''; }
-    groupPath = '';
-    chainsLoaded = 0;
     dataSearched = false;
     dataCounts = { Artists: 0, Albums: 0, Songs: 0 };
-    updatePathGate();
+    groupPath = '';
+    letterFilter = '';
+    sortAsc = true;
+    bulkSelected = [];
+    updateBulkCount();
+    if ($('dataFilter')) { $('dataFilter').value = ''; }
+    if ($('dataView')) { $('dataView').value = ''; }
     if ($('dataItem')) { $('dataItem').value = ''; }
     if ($('dataValue')) { $('dataValue').value = ''; }
     if ($('dataKind')) { $('dataKind').value = ''; }
@@ -1376,13 +1378,7 @@ function clearDataResults() {
     $('dataEmpty').style.display = 'block';
     $('dataCount').textContent = '';
     $('btnMore').style.display = 'none';
-    letterFilter = '';
-    groupPath = '';
-    chainsLoaded = 0;
-    sortAsc = true;
-    bulkSelected = [];
-    updateBulkCount();
-    if ($('dataView')) { $('dataView').value = ''; }
+    updatePathGate();
     buildLetters();
     updateDir();
     clearStatus('dataStatus');
@@ -1687,15 +1683,12 @@ function redrawData() {
 
   var letterFilter = '';
   var groupPath = '';
-  var chainsLoaded = 0;
   var dataSearched = false;
   var dataCounts = { Artists: 0, Albums: 0, Songs: 0 };
   var TREE_PAGE = 200;
 
   var bulkSelected = [];
   var pageSize = PAGE_SIZE;
-  var groupOffset = 0;
-  var lastGroupCount = 0;
 
   function updateBulkCount() {
     var b = $('btnBulkEdit');
@@ -1899,14 +1892,12 @@ function deleteValue(r) {
       dataOffset = 0;
       loadData(false);
     });
-    $('btnDataField').addEventListener('click', function () { dataMode = 'field'; dataOffset = 0; loadData(false); });
     $('dataValue').addEventListener('keydown', function (e) { if (e.key === 'Enter') { $('btnDataField').click(); } });
     $('btnMore').addEventListener('click', function () { loadData(true); });
     $('btnResetData').addEventListener('click', clearDataResults);
    $('dataView').addEventListener('change', function () {
       groupPath = this.value;
       dataOffset = 0;
-      chainsLoaded = 0;
       dataRowsAll = [];
       if (groupPath) { sortKey = 'Artist'; sortAsc = true; updateDir(); }
       updatePathGate();
@@ -1973,7 +1964,6 @@ function deleteValue(r) {
     $('dataReset').addEventListener('click', function () {
      letterFilter = '';
       groupPath = '';
-      chainsLoaded = 0;
       sortKey = 'Artist';
       sortAsc = true;
       if ($('dataView')) { $('dataView').value = ''; }
@@ -2282,12 +2272,6 @@ var LIB_TYPES = {
         })
         .catch(function (e) { setStatus('scanStatus', 'err', 'STOP FAILED: ' + e.message); });
     });
-
-    $('btnCancel').addEventListener('click', function () {
-      if (!task) { return; }
-      apiPost('ScheduledTasks/Running/' + task.Id).then(function () { setTimeout(refreshTask, 500); });
-    });
-  }
 
   /* ---------------- advanced ---------------- */
 
