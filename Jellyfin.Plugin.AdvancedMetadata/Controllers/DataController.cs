@@ -14,6 +14,7 @@ using MediaBrowser.Model.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.AdvancedMetadata.Controllers;
 
@@ -28,12 +29,15 @@ public class DataController : ControllerBase
     private readonly MetadataStore _store;
     private readonly ITaskManager _tasks;
     private readonly ILibraryManager _library;
+    private readonly ILogger<DataController> _logger;
 
-    public DataController(MetadataStore store, ITaskManager tasks, ILibraryManager library)
+    public DataController(MetadataStore store, ITaskManager tasks, ILibraryManager library,
+                          ILogger<DataController> logger)
     {
         _store = store;
         _tasks = tasks;
         _library = library;
+        _logger = logger;
     }
 
     private static bool ScanRunning()
@@ -109,7 +113,7 @@ public class DataController : ControllerBase
         {
             StoreFolder = folder,
             StorePath = _store.DbPath,
-            Schema = "0.7",
+            Schema = _store.Schema,
             SizeBytes = _store.SizeBytes,
             Items = counts.Items,
             Values = counts.Values,
@@ -268,8 +272,8 @@ public class DataController : ControllerBase
                 onlyOverrides: onlyOverrides == true,
                 letter: letter,
                 desc: desc == true,
-                chainLimit: lim,
-                chainOffset: off);
+                rowLimit: lim,
+                rowOffset: off);
         }
         catch (Exception ex)
         {
@@ -331,6 +335,10 @@ public class DataController : ControllerBase
 
         var worker = _tasks.ScheduledTasks.FirstOrDefault(t => t.ScheduledTask.Key == ScanKey);
         if (worker is null) { return Ok(new { Ok = false, Message = "The scan task was not found." }); }
+
+        _logger.LogInformation(
+            "Advanced Metadata: scan requested (mapping {Mapping}, library {Library}, full {Full})",
+            mapping ?? "all", library ?? "all", full == true);
 
         _tasks.Execute(worker, new TaskOptions());
         return Ok(new { Ok = true });
@@ -456,6 +464,7 @@ public class DataController : ControllerBase
 
         var before = _store.Counts();
         _store.ClearAll();
+        _logger.LogInformation("Advanced Metadata: index cleared, {Values} value(s) removed", before.Values);
         return Ok(new { Removed = before.Values });
     }
 
@@ -510,6 +519,7 @@ public class DataController : ControllerBase
         }
         catch (Exception ex)
         {
+            _logger.LogWarning(ex, "Advanced Metadata: backup failed");
             return StatusCode(500, new { Message = ex.Message });
         }
         finally
