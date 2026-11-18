@@ -70,6 +70,7 @@ public class ScanTask : IScheduledTask
         // Optional single-library scope
         var scopeId = Guid.Empty;
         var scopeName = string.Empty;
+        BaseItem? scopeItem = null;
         // Only a manually started scan carries a scope. The scheduled run is always global.
         var requestedScope = Plugin.PendingScanLibraryId;
         if (string.IsNullOrWhiteSpace(requestedScope)) { requestedScope = cfg.PendingScanLibraryId; }
@@ -78,7 +79,7 @@ public class ScanTask : IScheduledTask
 
         if (Guid.TryParse(requestedScope, out var wantedScope) && wantedScope != Guid.Empty)
         {
-            var scopeItem = _library.GetItemById(wantedScope);
+            scopeItem = _library.GetItemById(wantedScope);
             if (scopeItem is null)
             {
                 _logger.LogWarning(
@@ -102,6 +103,7 @@ public class ScanTask : IScheduledTask
         cfg.LastScanSkipped = 0;
         cfg.LastScanValues = 0;
         cfg.LastScanRemoved = 0;
+        cfg.LastScanRemovedItems = 0;
         cfg.LastScanErrors = 0;
         cfg.LastScanBackfill = 0;
         cfg.LastScanTotal = 0;
@@ -244,7 +246,9 @@ public class ScanTask : IScheduledTask
             var removed = 0;
             var errors = 0;
             var rolled = 0;
+            var removedItems = 0;
             var startedAt = DateTime.UtcNow;
+            var runTag = Guid.NewGuid().ToString("N");
             var cfgGate = new object();
 
             try
@@ -366,6 +370,8 @@ public class ScanTask : IScheduledTask
                         {
                             _store.SetItemArtist(key, primaryArtist.Id.ToString("N"));
                         }
+
+                        _store.TouchItem(key, runTag);
                     }
                     catch (Exception ex)
                     {
@@ -481,8 +487,22 @@ public class ScanTask : IScheduledTask
                 cfg.LastScanSkipped = skipped;
                 cfg.LastScanErrors = errors;
                 cfg.LastScanItems = done;
+                cfg.LastScanRemovedItems = removedItems;
                 plugin.UpdateConfiguration(cfg);
                 _store.EndBatch();
+            }
+
+            // A full pass has now seen every track, so anything it did not see has gone.
+            if (full)
+            {
+                Stage("Removing items that are gone");
+                var scopePath = scoped ? (scopeItem?.Path ?? string.Empty) : string.Empty;
+                removedItems = _store.PruneMissing(runTag, scopePath);
+                cfg.LastScanRemovedItems = removedItems;
+                plugin.UpdateConfiguration(cfg);
+                _logger.LogInformation(
+                    "Advanced Metadata: {Count} item(s) no longer present were removed from the index",
+                    removedItems);
             }
 
             progress.Report(100);
@@ -498,7 +518,8 @@ public class ScanTask : IScheduledTask
             cfg.LastScanFinishedUtc = DateTime.UtcNow;
             cfg.LastScanStatus = "Complete";
             if (full && !scoped) { cfg.LastFullScanUtc = DateTime.UtcNow; }
-            cfg.LastScanSummary = $"{done} read, {skipped} unchanged, {values} indexed, {rolled} rolled up, {errors} errors.";
+            cfg.LastScanSummary = $"{done} read, {skipped} unchanged, {values} indexed, "
+                + $"{removedItems} items gone, {errors} errors.";
             plugin.UpdateConfiguration(cfg);
 
             _logger.LogInformation("Advanced Metadata: scan complete. {Summary}", cfg.LastScanSummary);
