@@ -192,7 +192,7 @@ public class ScanTask : IScheduledTask
 
             foreach (var m in mappings)
             {
-                _logger.LogInformation("Advanced Metadata: mapping {Tag} applies to {Hierarchy}", m.SourceTag, m.Hierarchy);
+                _logger.LogDebug("Advanced Metadata: mapping {Tag} applies to {Hierarchy}", m.SourceTag, m.Hierarchy);
             }
 
             Stage("Reading library item list");
@@ -310,7 +310,7 @@ public class ScanTask : IScheduledTask
                         var seen = Interlocked.Increment(ref skipped);
                         if (seen <= 5)
                         {
-                            _logger.LogInformation(
+                            _logger.LogDebug(
                                 "Advanced Metadata: skipped {Path} (mtime {Mtime}, size {Size})",
                                 path, mtime, size);
                         }
@@ -382,8 +382,8 @@ public class ScanTask : IScheduledTask
 
                     // Discs are commonly written "1/3", so take the leading number and fall
                     // back to the parsed tag. Without a disc, multi-disc albums interleave.
-                    var discNo = LeadInt(raw.TryGetValue("DISCNUMBER", out var discRaw) ? discRaw : null, t.Disc);
-                    var trackNo = LeadInt(raw.TryGetValue("TRACKNUMBER", out var trackRaw) ? trackRaw : null, t.Track);
+                    var discNo = LeadInt(raw.TryGetValue("DISCNUMBER", out var discRaw) ? discRaw : null);
+                    var trackNo = LeadInt(raw.TryGetValue("TRACKNUMBER", out var trackRaw) ? trackRaw : null);
                     if (discNo > 0 || trackNo > 0) { _store.SetItemOrder(key, discNo, trackNo); }
 
                     foreach (var m in mappings)
@@ -474,7 +474,7 @@ public class ScanTask : IScheduledTask
 
                     if (n <= 20)
                     {
-                        _logger.LogInformation(
+                        _logger.LogDebug(
                             "Advanced Metadata: item {Done} took {Ms}ms ({Mappings} mapping(s))",
                             n, itemClock.ElapsedMilliseconds, mappings.Count);
                     }
@@ -666,8 +666,8 @@ public class ScanTask : IScheduledTask
         }
     }
 
-/// <summary>Leading number of the first value that has one, else the fallback.</summary>
-    private static int LeadInt(List<string>? values, int fallback)
+/// <summary>Leading number of the first value that carries one, else zero.</summary>
+    private static int LeadInt(List<string>? values)
     {
         if (values is not null)
         {
@@ -685,7 +685,7 @@ public class ScanTask : IScheduledTask
             }
         }
 
-        return fallback > 0 ? fallback : 0;
+       return 0;
     }
 
    private static Dictionary<string, List<string>> ReadRawTags(string path, IEnumerable<string> tags, out bool ok)
