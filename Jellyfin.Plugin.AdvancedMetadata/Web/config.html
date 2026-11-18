@@ -483,8 +483,10 @@
     </p>
 
     <div class="am-status info show" style="max-width:620px">
-      A standard scan only picks up <strong>changed</strong> files. If you have just added a new mapping,
-      tick <strong>Full Rescan</strong> below — otherwise the new mapping will have nothing to show.
+      <p>A standard scan only picks up <strong>changed</strong> files. If you have just added a new mapping,
+      tick <strong>Full Rescan</strong> below to pick up the new mapping and scan it's content. 
+      </p>
+       <p>A full rescan also removes mapping values for files that are no longer there. Select a full library scan to prune that library only.</p>
     </div>
 
     <div class="am-field" style="max-width:620px;margin-top:26px">
@@ -520,6 +522,11 @@
           <strong>Full Rescan</strong>
           <div class="am-hint">A full rescan will re-read every track in the library and not just
           recent changes. This takes significantly longer.</div>
+          </div>
+          <div class="am-hint">
+            This is also the only scan that deletes entries for removed or renamed files.
+            A standard scan leaves them in place.
+          </div>
         </span>
       </label>
     </div>
@@ -2992,3 +2999,31 @@ var LIB_TYPES = {
 </style>
   
 </div>
+
+<!-- ===== land on Create when the page is entered ===== -->
+<script>
+(function () {
+  var inside = false;
+
+  function onPage() {
+    var p = document.getElementById('AdvancedMetadataConfigPage');
+    return !!(p && p.offsetParent !== null);
+  }
+
+  function check() {
+    if (!onPage()) { inside = false; return; }
+    if (inside) { return; }
+    inside = true;
+    ['newTag', 'newDisplay', 'newDelims', 'newHierarchy', 'newDelimMode',
+     'bulkTags', 'bulkHierarchy'].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) { el.value = ''; }
+    });
+    if (window.amShowTab) { window.amShowTab('create'); }
+  }
+
+  window.addEventListener('pageshow', check);
+  setInterval(check, 400);
+})();
+</script>
+
