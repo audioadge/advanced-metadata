@@ -7,6 +7,7 @@ using System.Text;
 using Jellyfin.Plugin.AdvancedMetadata.Configuration;
 using MediaBrowser.Common.Configuration;
 using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.AdvancedMetadata.Store;
 
@@ -27,9 +28,11 @@ public class MetadataStore
     private static readonly Dictionary<string, long> _fieldIds = new(StringComparer.OrdinalIgnoreCase);
 
     private readonly string _dbPath;
+    private readonly ILogger<MetadataStore> _logger;
 
-    public MetadataStore(IApplicationPaths paths)
+    public MetadataStore(IApplicationPaths paths, ILogger<MetadataStore> logger)
     {
+        _logger = logger;
         var dir = Path.Combine(paths.DataPath, "advancedmetadata");
         Directory.CreateDirectory(dir);
        _dbPath = Path.Combine(dir, "index.db");
@@ -52,25 +55,8 @@ public class MetadataStore
 
     public string DatabasePath => _dbPath;
 
-    /// <summary>Appends one line to debug.log next to index.db, and beside the plugin DLLs.</summary>
-    private void Log(string line)
-    {
-        var stamp = DateTime.Now.ToString("HH:mm:ss.fff") + "  " + line + Environment.NewLine;
-        try
-        {
-            var dir = Path.GetDirectoryName(_dbPath);
-            if (!string.IsNullOrEmpty(dir)) { AppendLog(Path.Combine(dir, "debug.log"), stamp); }
-        }
-        catch { }
-        try { AppendLog(Path.Combine(AppContext.BaseDirectory, "debug.log"), stamp); } catch { }
-    }
-
-    private static void AppendLog(string path, string text)
-    {
-        var fi = new FileInfo(path);
-        if (fi.Exists && fi.Length > 400_000) { File.WriteAllText(path, string.Empty); }
-        File.AppendAllText(path, text);
-    }
+    /// <summary>Writes one line to the stock Jellyfin log, prefixed so it can be searched for.</summary>
+    private void Log(string line) => _logger.LogInformation("Advanced Metadata store: {Line}", line);
 
     /// <summary>Flushes the write-ahead log into the main file so a copy is self-contained.</summary>
     public void Checkpoint()
@@ -300,6 +286,7 @@ CREATE TABLE IF NOT EXISTS fields(id INTEGER PRIMARY KEY, name TEXT NOT NULL UNI
 CREATE TABLE IF NOT EXISTS vals(item_id INTEGER NOT NULL, field_id INTEGER NOT NULL, value TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS ix_vals ON vals(field_id, value);
 CREATE INDEX IF NOT EXISTS ix_vals_item ON vals(item_id);
+CREATE INDEX IF NOT EXISTS ix_vals_fi ON vals(field_id, item_id);
 CREATE INDEX IF NOT EXISTS ix_items_name ON items(name);
 CREATE TABLE IF NOT EXISTS overrides(id INTEGER PRIMARY KEY, jellyfin_id TEXT NOT NULL, field TEXT NOT NULL, old_value TEXT NOT NULL DEFAULT '', new_value TEXT NOT NULL DEFAULT '', created_utc TEXT NOT NULL);
 CREATE UNIQUE INDEX IF NOT EXISTS ix_ovr ON overrides(jellyfin_id, field, old_value);
@@ -313,6 +300,7 @@ CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL);");
         AddColumn(c, "items", "disc", "INTEGER");
         AddColumn(c, "items", "track", "INTEGER");
         AddColumn(c, "items", "artist_id", "TEXT");
+        AddColumn(c, "items", "seen_run", "TEXT");
         try { Exec(c, "CREATE INDEX IF NOT EXISTS ix_items_artist ON items(artist_id);"); } catch { }
         try { Exec(c, "UPDATE items SET seen_utc = datetime('now') WHERE seen_utc IS NULL;"); } catch { }
 
@@ -328,7 +316,55 @@ CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL);");
 
         RepairOverrides(c);
 
-        SetMeta("schema", "0.7");
+        // The stored value records which layout this file was built with, so a future change can
+        // tell an upgrade from a fresh index. It is written here and reported on a mismatch.
+        var stored = string.Empty;
+        try
+        {
+            using var mc = c.CreateCommand();
+            mc.CommandText = "SELECT value FROM meta WHERE key='schema';";
+            stored = mc.ExecuteScalar() as string ?? string.Empty;
+        }
+        catch
+        {
+            // the meta table may only just have been created
+        }
+
+        if (stored.Length > 0 && !string.Equals(stored, SchemaVersion, StringComparison.Ordinal))
+        {
+            _logger.LogInformation("Advanced Metadata: index schema {Old} -> {New}", stored, SchemaVersion);
+        }
+
+        using (var sc = c.CreateCommand())
+        {
+            sc.CommandText = "INSERT INTO meta(key,value) VALUES('schema',$v) ON CONFLICT(key) DO UPDATE SET value=$v;";
+            sc.Parameters.AddWithValue("$v", SchemaVersion);
+            sc.ExecuteNonQuery();
+        }
+    }
+
+    /// <summary>Layout version of the index this build understands.</summary>
+    public const string SchemaVersion = "0.8";
+
+    /// <summary>The layout version the open index was built with.</summary>
+    public string Schema
+    {
+        get
+        {
+            try
+            {
+                return Read(c =>
+                {
+                    using var cmd = c.CreateCommand();
+                    cmd.CommandText = "SELECT value FROM meta WHERE key='schema';";
+                    return cmd.ExecuteScalar() as string ?? string.Empty;
+                });
+            }
+            catch
+            {
+                return string.Empty;
+            }
+        }
     }
 
     private static void Exec(SqliteConnection c, string sql)
@@ -816,6 +852,74 @@ CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL);");
             cmd.Parameters.AddWithValue("$p", parentId);
             cmd.Parameters.AddWithValue("$j", jellyfinId);
             cmd.ExecuteNonQuery();
+        });
+
+   /// <summary>Records which scan saw an item, so a later pass can tell what has disappeared.</summary>
+    public void TouchItem(string jellyfinId, string runTag)
+        => Write(c =>
+        {
+            using var cmd = c.CreateCommand();
+            cmd.CommandText = "UPDATE items SET seen_run=$r WHERE jellyfin_id=$j;";
+            cmd.Parameters.AddWithValue("$r", runTag);
+            cmd.Parameters.AddWithValue("$j", jellyfinId);
+            cmd.ExecuteNonQuery();
+        });
+
+    /// <summary>
+    /// Drops tracks a full scan did not see, with their values and edits, then any album or
+    /// artist row left with nothing beneath it. Returns how many tracks went.
+    /// </summary>
+    public int PruneMissing(string runTag, string scopePath)
+        => Write(c =>
+        {
+            var gone = new List<(long Id, string Jid)>();
+            using (var sel = c.CreateCommand())
+            {
+                sel.CommandText = "SELECT id, jellyfin_id FROM items WHERE kind='Audio' AND COALESCE(seen_run,'') <> $r"
+                    + (string.IsNullOrWhiteSpace(scopePath) ? string.Empty : " AND COALESCE(path,'') LIKE $p");
+                sel.Parameters.AddWithValue("$r", runTag);
+                if (!string.IsNullOrWhiteSpace(scopePath))
+                {
+                    sel.Parameters.AddWithValue("$p", scopePath.TrimEnd('/') + "%");
+                }
+
+                using var r = sel.ExecuteReader();
+                while (r.Read()) { gone.Add((r.GetInt64(0), r.GetString(1))); }
+            }
+
+            foreach (var (id, jid) in gone)
+            {
+                using (var v = c.CreateCommand())
+                {
+                    v.CommandText = "DELETE FROM vals WHERE item_id=$i;";
+                    v.Parameters.AddWithValue("$i", id);
+                    v.ExecuteNonQuery();
+                }
+
+                using (var o = c.CreateCommand())
+                {
+                    o.CommandText = "DELETE FROM overrides WHERE jellyfin_id=$j;";
+                    o.Parameters.AddWithValue("$j", jid);
+                    o.ExecuteNonQuery();
+                }
+
+                using var d = c.CreateCommand();
+                d.CommandText = "DELETE FROM items WHERE id=$i;";
+                d.Parameters.AddWithValue("$i", id);
+                d.ExecuteNonQuery();
+            }
+
+            // albums and artists exist only to hold the rows beneath them
+            Exec(c, "DELETE FROM vals WHERE item_id IN (SELECT i.id FROM items i WHERE i.kind='MusicAlbum'"
+                + " AND NOT EXISTS (SELECT 1 FROM items t WHERE t.parent_id = i.jellyfin_id));");
+            Exec(c, "DELETE FROM items WHERE kind='MusicAlbum'"
+                + " AND NOT EXISTS (SELECT 1 FROM items t WHERE t.parent_id = items.jellyfin_id);");
+            Exec(c, "DELETE FROM vals WHERE item_id IN (SELECT i.id FROM items i WHERE i.kind='MusicArtist'"
+                + " AND NOT EXISTS (SELECT 1 FROM items a WHERE a.artist_id = i.jellyfin_id));");
+            Exec(c, "DELETE FROM items WHERE kind='MusicArtist'"
+                + " AND NOT EXISTS (SELECT 1 FROM items a WHERE a.artist_id = items.jellyfin_id);");
+
+            return gone.Count;
         });
 
     /// <summary>Marks an item so the next scan re-reads it, whatever else has changed.</summary>
@@ -1388,7 +1492,7 @@ COALESCE(i.parent_id,'') AS parent, COALESCE(i.disc,0) AS disc, COALESCE(i.track
         /// chain exists for the same field, so a level is never invented. Pages over chains.
         /// </summary>
        public TreePage BrowseTree(string? field, string? query, string? name, string? path, string? kind,
-                               bool onlyOverrides, string? letter, bool desc, int chainLimit, int chainOffset)
+                              bool onlyOverrides, string? letter, bool desc, int rowLimit, int rowOffset)
     {
         var where = new List<string>();
         var args = new List<(string K, object V)>();
@@ -1547,8 +1651,8 @@ COALESCE(i.parent_id,'') AS parent, COALESCE(i.disc,0) AS disc, COALESCE(i.track
                     + "\nLIMIT $lim OFFSET $off;";
 
                 foreach (var (k, v) in args) { cmd.Parameters.AddWithValue(k, v); }
-                cmd.Parameters.AddWithValue("$lim", Math.Max(1, chainLimit));
-                cmd.Parameters.AddWithValue("$off", Math.Max(0, chainOffset));
+                cmd.Parameters.AddWithValue("$lim", Math.Max(1, rowLimit));
+                cmd.Parameters.AddWithValue("$off", Math.Max(0, rowOffset));
 
                 using var r = cmd.ExecuteReader();
                 while (r.Read())
