@@ -551,11 +551,11 @@
     <h2>Advanced</h2>
 
     <div class="am-risk">
-      <strong>This page can destroy plugin data. Read before you press anything.</strong>
+      <strong>This page can destroy plugin data. Read before you take any action.</strong>
       <ul>
-        <li><b>Reindex Database</b> deletes every indexed value and every edit, then rebuilds with a full scan. <b>Delete All Mappings</b> empties the index and keeps it empty.</li>
+        <li><b>Reindex Database</b> deletes every indexed value plus every edit, then rebuilds with a full scan (<b>Delete All Mappings</b> empties the index and leaves it empty.)</li>
         <li><b>Reset All Data Overrides</b> resets every manual edit and deletion you have made.</li>
-        <li><b>Restore</b> overwrites the index <em>and</em> every mapping with the contents of a backup. Anything edited since that backup was made is gone.</li>
+        <li><b>Restore</b> overwrites the index <em>and</em> every mapping with the contents of a backup. Anything scanned or edited since that backup was made is gone.</li>
         <li>Download a plugin backup from this page before you change anything here.</li>
       </ul>
     </div>
@@ -651,7 +651,7 @@
     <div class="am-field" style="max-width:680px">
       <div class="am-label">Backup file</div>
       <input id="restoreFile" type="file" accept=".zip,.db" />
-      <div class="am-hint">Choose a zip made by Download Backup above, or a <span class="am-mono">.db</span>
+      <div class="am-hint">Choose a zip made by Download above, or a <span class="am-mono">.db</span>
       file such as one of the pre-restore copies. Before anything is replaced the current index is
       copied into the store folder as <span class="am-mono">pre-restore-…db</span>, so a restore can be
       undone; only the three most recent of those are kept.</div>
@@ -664,7 +664,7 @@
 
     <div class="am-hint" style="max-width:680px; margin-top:16px">
     The plugin closes and reopens the database itself during a restore, so a restart is normally not
-      needed. If the index counts on this page look wrong afterwards, attempt a restart of Jellyfin from here.
+      required. If the index counts on this page look wrong afterwards, attempt a restart of Jellyfin from here.
     </div>
     <div class="am-actions">
       <button id="btnRestart" class="am-btn am-btn-primary">Restart Jellyfin</button>
@@ -967,6 +967,16 @@
     return (cfg.Mappings || []).some(function (m) {
       return (m.SourceTag || '').toUpperCase() === tag.toUpperCase();
     });
+  }
+
+  function resetCreateForm() {
+    ['newTag', 'newDisplay', 'newDelims', 'newHierarchy', 'newDelimMode',
+     'bulkTags', 'bulkHierarchy'].forEach(function (id) {
+      var el = $(id);
+      if (el) { el.value = ''; }
+    });
+    clearStatus('createStatus');
+    clearStatus('bulkStatus');
   }
 
   function wireCreate() {
@@ -2003,8 +2013,10 @@ function deleteValue(r) {
       } else if (ended === 'Complete') {
         var idx = cfg.LastScanValues || 0;
         var rem = cfg.LastScanRemoved || 0;
+        var gone = cfg.LastScanRemovedItems || 0;
         setStatus('scanStatus', 'ok', 'Scan complete — ' + idx + ' value(s) indexed'
-          + (rem ? ', ' + rem + ' removed' : '') + '.');
+          + (rem ? ', ' + rem + ' removed' : '')
+          + (gone ? ', ' + gone + ' item(s) no longer present' : '') + '.');
       } else if (ended === 'Failed To Execute') {
         setStatus('scanStatus', 'err', 'Scan failed. See the Last scan card below.');
       } else {
@@ -2076,6 +2088,7 @@ function deleteValue(r) {
     if ($('kvSkipped')) { $('kvSkipped').textContent = cfg.LastScanSkipped == null ? '—' : cfg.LastScanSkipped; }
     if ($('kvValues')) { $('kvValues').textContent = cfg.LastScanValues == null ? '—' : cfg.LastScanValues; }
     if ($('kvRemoved')) { $('kvRemoved').textContent = cfg.LastScanRemoved == null ? '—' : cfg.LastScanRemoved; }
+    if ($('kvRemovedItems')) { $('kvRemovedItems').textContent = cfg.LastScanRemovedItems == null ? '—' : cfg.LastScanRemovedItems; }
     if ($('kvErrors')) { $('kvErrors').textContent = cfg.LastScanErrors == null ? '—' : cfg.LastScanErrors; }
     if ($('kvStarted')) { $('kvStarted').textContent = fmt(cfg.LastScanStartedUtc); }
     if ($('kvFinished')) { $('kvFinished').textContent = fmt(cfg.LastScanFinishedUtc); }
@@ -2450,6 +2463,8 @@ var LIB_TYPES = {
       if (!$('AdvancedMetadataConfigPage')) { setTimeout(init, 200); return; }
 
       unhideAncestors();
+      resetCreateForm();
+      window.amShowTab('create');
 
     [wireCreate, wireManage, wireData, wireScan, wireAdvanced, wireBackup, watchRoute].forEach(function (fn) {
         try {
