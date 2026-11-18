@@ -43,6 +43,9 @@ public class PluginConfiguration : BasePluginConfiguration
     public int LastScanSkipped { get; set; }
     public int LastScanValues { get; set; }
     public int LastScanErrors { get; set; }
+
+    /// <summary>Items dropped from the index by the last full scan because the file had gone.</summary>
+    public int LastScanRemovedItems { get; set; }
     public int LastScanBackfill { get; set; }
     public string LastScanError { get; set; } = string.Empty;
 }
