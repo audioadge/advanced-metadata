@@ -380,10 +380,10 @@ public class ScanTask : IScheduledTask
                         return;
                     }
 
-                    var discNo = 0;
-                    var trackNo = 0;
-                    int.TryParse(SplitValues(raw, "DISCNUMBER", delims).FirstOrDefault(), out discNo);
-                    int.TryParse(SplitValues(raw, "TRACKNUMBER", delims).FirstOrDefault(), out trackNo);
+                    // Discs are commonly written "1/3", so take the leading number and fall
+                    // back to the parsed tag. Without a disc, multi-disc albums interleave.
+                    var discNo = LeadInt(raw.TryGetValue("DISCNUMBER", out var discRaw) ? discRaw : null, t.Disc);
+                    var trackNo = LeadInt(raw.TryGetValue("TRACKNUMBER", out var trackRaw) ? trackRaw : null, t.Track);
                     if (discNo > 0 || trackNo > 0) { _store.SetItemOrder(key, discNo, trackNo); }
 
                     foreach (var m in mappings)
@@ -497,7 +497,14 @@ public class ScanTask : IScheduledTask
             {
                 Stage("Removing items that are gone");
                 var scopePath = scoped ? (scopeItem?.Path ?? string.Empty) : string.Empty;
-                removedItems = _store.PruneMissing(runTag, scopePath);
+
+                // A scoped run that cannot resolve its folder must not prune across everything.
+                if (!scoped || !string.IsNullOrWhiteSpace(scopePath))
+                {
+                    removedItems = _store.PruneMissing(runTag, scopePath);
+                }
+
+                _logger.LogInformation("Advanced Metadata: prune scope '{Scope}'", scopePath);
                 cfg.LastScanRemovedItems = removedItems;
                 plugin.UpdateConfiguration(cfg);
                 _logger.LogInformation(
@@ -657,6 +664,28 @@ public class ScanTask : IScheduledTask
                 }
             }
         }
+    }
+
+/// <summary>Leading number of the first value that has one, else the fallback.</summary>
+    private static int LeadInt(List<string>? values, int fallback)
+    {
+        if (values is not null)
+        {
+            foreach (var value in values)
+            {
+                var s = (value ?? string.Empty).Trim();
+                var cut = 0;
+                while (cut < s.Length && char.IsDigit(s[cut])) { cut++; }
+                if (cut > 0
+                    && int.TryParse(s.Substring(0, cut), NumberStyles.Integer, CultureInfo.InvariantCulture, out var n)
+                    && n > 0)
+                {
+                    return n;
+                }
+            }
+        }
+
+        return fallback > 0 ? fallback : 0;
     }
 
    private static Dictionary<string, List<string>> ReadRawTags(string path, IEnumerable<string> tags, out bool ok)
