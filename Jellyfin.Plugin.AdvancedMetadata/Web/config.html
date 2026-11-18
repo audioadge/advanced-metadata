@@ -522,7 +522,6 @@
           <strong>Full Rescan</strong>
           <div class="am-hint">A full rescan will re-read every track in the library and not just
           recent changes. This takes significantly longer.</div>
-          </div>
           <div class="am-hint">
             This is also the only scan that deletes entries for removed or renamed files.
             A standard scan leaves them in place.
@@ -2488,6 +2487,8 @@ var LIB_TYPES = {
       }
 
       loadConfig().then(function () {
+        resetCreateForm();
+        window.amShowTab('create');
         refreshTask();
         setInterval(function () {
           if (document.hidden) { return; }
