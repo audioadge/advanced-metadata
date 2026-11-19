@@ -3031,6 +3031,7 @@ var LIB_TYPES = {
   function check() {
     if (done) { return; }
     if (!onPage()) { return; }
+    if (!window.amShowTab) { return; }
     done = true;
     ['newTag', 'newDisplay', 'newDelims', 'newHierarchy', 'newDelimMode',
      'bulkTags', 'bulkHierarchy'].forEach(function (id) {
