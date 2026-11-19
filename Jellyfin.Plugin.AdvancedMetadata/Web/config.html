@@ -2213,6 +2213,10 @@ var LIB_TYPES = {
 
     $('btnResetScanOpts').addEventListener('click', function () {
       apiPost('AdvancedMetadataData/ResetScanOptions').then(function () {
+        cfg.ScanLibraryId = '';
+        cfg.PendingScanLibraryId = '';
+        cfg.PendingScanMappingTag = '';
+        cfg.FullRescanRequested = false;
         if ($('scanLibrary')) { $('scanLibrary').value = ''; }
         if ($('scanMapping')) { $('scanMapping').value = ''; }
         if ($('chkFull')) { $('chkFull').checked = false; }
@@ -3012,7 +3016,7 @@ var LIB_TYPES = {
 
   function onPage() {
     var p = document.getElementById('AdvancedMetadataConfigPage');
-    return !!(p && p.offsetParent !== null);
+    return !!(p && p.getClientRects().length > 0);
   }
 
   function check() {
@@ -3028,6 +3032,8 @@ var LIB_TYPES = {
   }
 
   window.addEventListener('pageshow', check);
+  document.addEventListener('visibilitychange', check);
+  setTimeout(check, 200);
   setInterval(check, 400);
 })();
 </script>
