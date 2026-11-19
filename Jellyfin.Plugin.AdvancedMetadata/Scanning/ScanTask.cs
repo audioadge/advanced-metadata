@@ -524,7 +524,6 @@ public class ScanTask : IScheduledTask
                         if (root.Length > 0) { scopePaths.Add(root); }
                     }
                 }
-                }
 
                 // A scoped run that cannot resolve a folder must not prune across everything.
                 if (!scoped || scopePaths.Count > 0)
