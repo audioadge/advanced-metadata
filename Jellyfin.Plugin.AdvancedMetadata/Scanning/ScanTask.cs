@@ -496,19 +496,34 @@ public class ScanTask : IScheduledTask
             if (full)
             {
                 Stage("Removing items that are gone");
-                // A library is a CollectionFolder: its Path is empty and the real locations
-                // live on its physical folders.
+                // A library folder carries no path of its own, so take the deepest directory
+                // that all of its scanned items share.
                 var scopePaths = new List<string>();
-                if (scoped && scopeItem is not null)
+                if (scoped)
                 {
-                    scopePaths.AddRange(scopeItem.GetPhysicalFolders()
-                        .Select(f => f.Path)
-                        .Where(p => !string.IsNullOrWhiteSpace(p)));
+                    var sample = items
+                        .Select(i => i.Path)
+                        .Where(p => !string.IsNullOrWhiteSpace(p))
+                        .Take(64)
+                        .ToList();
 
-                    if (scopePaths.Count == 0 && !string.IsNullOrWhiteSpace(scopeItem.Path))
+                    if (sample.Count > 0)
                     {
-                        scopePaths.Add(scopeItem.Path);
+                        var root = Path.GetDirectoryName(sample[0]) ?? string.Empty;
+
+                        foreach (var p in sample.Skip(1))
+                        {
+                            while (root.Length > 0 && !p.StartsWith(root, StringComparison.Ordinal))
+                            {
+                                root = Path.GetDirectoryName(root) ?? string.Empty;
+                            }
+
+                            if (root.Length == 0) { break; }
+                        }
+
+                        if (root.Length > 0) { scopePaths.Add(root); }
                     }
+                }
                 }
 
                 // A scoped run that cannot resolve a folder must not prune across everything.
