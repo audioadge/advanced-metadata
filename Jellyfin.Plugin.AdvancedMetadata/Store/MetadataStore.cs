@@ -869,18 +869,31 @@ CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL);");
     /// Drops tracks a full scan did not see, with their values and edits, then any album or
     /// artist row left with nothing beneath it. Returns how many tracks went.
     /// </summary>
-    public int PruneMissing(string runTag, string scopePath)
+    public int PruneMissing(string runTag, IReadOnlyList<string> scopePaths)
         => Write(c =>
         {
             var gone = new List<(long Id, string Jid)>();
             using (var sel = c.CreateCommand())
             {
-                sel.CommandText = "SELECT id, jellyfin_id FROM items WHERE kind='Audio' AND COALESCE(seen_run,'') <> $r"
-                    + (string.IsNullOrWhiteSpace(scopePath) ? string.Empty : " AND COALESCE(path,'') LIKE $p");
-                sel.Parameters.AddWithValue("$r", runTag);
-                if (!string.IsNullOrWhiteSpace(scopePath))
+                var sql = "SELECT id, jellyfin_id FROM items WHERE kind='Audio' AND COALESCE(seen_run,'') <> $r";
+
+                if (scopePaths.Count > 0)
                 {
-                    sel.Parameters.AddWithValue("$p", scopePath.TrimEnd('/') + "%");
+                    var terms = new List<string>();
+                    for (var i = 0; i < scopePaths.Count; i++)
+                    {
+                        terms.Add("COALESCE(path,'') LIKE $p" + i);
+                    }
+
+                    sql += " AND (" + string.Join(" OR ", terms) + ")";
+                }
+
+                sel.CommandText = sql;
+                sel.Parameters.AddWithValue("$r", runTag);
+
+                for (var i = 0; i < scopePaths.Count; i++)
+                {
+                    sel.Parameters.AddWithValue("$p" + i, scopePaths[i].TrimEnd('/') + "%");
                 }
 
                 using var r = sel.ExecuteReader();
