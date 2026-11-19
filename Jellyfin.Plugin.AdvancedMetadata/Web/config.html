@@ -545,6 +545,7 @@
       <div class="am-kv"><span>Unchanged / skipped</span><span id="kvSkipped">—</span></div>
       <div class="am-kv"><span>Values indexed</span><span id="kvValues">—</span></div>
       <div class="am-kv"><span>Values removed</span><span id="kvRemoved">—</span></div>
+      <div class="am-kv"><span>Items removed</span><span id="kvRemovedItems">—</span></div>
       <div class="am-kv"><span>Errors</span><span id="kvErrors">—</span></div>
       <div class="am-kv"><span>Started</span><span id="kvStarted">—</span></div>
       <div class="am-kv"><span>Finished</span><span id="kvFinished">—</span></div>
@@ -885,7 +886,10 @@
   function fmt(iso) {
     if (!iso) { return '—'; }
     var d = new Date(iso);
-    return isNaN(d.getTime()) ? '—' : d.toLocaleString();
+    if (isNaN(d.getTime())) { return '—'; }
+    var p = function (n) { return (n < 10 ? '0' : '') + n; };
+    return p(d.getDate()) + '/' + p(d.getMonth() + 1) + '/' + d.getFullYear()
+      + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
   }
 
   function fmtDate(iso) {
