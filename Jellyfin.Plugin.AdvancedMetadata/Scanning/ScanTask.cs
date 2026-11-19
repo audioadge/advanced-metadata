@@ -70,7 +70,7 @@ public class ScanTask : IScheduledTask
         // Optional single-library scope
         var scopeId = Guid.Empty;
         var scopeName = string.Empty;
-        BaseItem? scopeItem = null;
+        Folder? scopeItem = null;
         // Only a manually started scan carries a scope. The scheduled run is always global.
         var requestedScope = Plugin.PendingScanLibraryId;
         if (string.IsNullOrWhiteSpace(requestedScope)) { requestedScope = cfg.PendingScanLibraryId; }
@@ -79,7 +79,7 @@ public class ScanTask : IScheduledTask
 
         if (Guid.TryParse(requestedScope, out var wantedScope) && wantedScope != Guid.Empty)
         {
-            scopeItem = _library.GetItemById(wantedScope);
+            scopeItem = _library.GetItemById(wantedScope) as Folder;
             if (scopeItem is null)
             {
                 _logger.LogWarning(
