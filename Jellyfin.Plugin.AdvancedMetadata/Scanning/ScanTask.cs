@@ -501,10 +501,11 @@ public class ScanTask : IScheduledTask
                 var scopePaths = new List<string>();
                 if (scoped)
                 {
+                   // Every path, not a head sample: the list is path-ordered, so the first few
+                    // dozen items all sit in the same album and would pin the root too deep.
                     var sample = items
                         .Select(i => i.Path)
                         .Where(p => !string.IsNullOrWhiteSpace(p))
-                        .Take(64)
                         .ToList();
 
                     if (sample.Count > 0)
@@ -533,9 +534,16 @@ public class ScanTask : IScheduledTask
 
                 cfg.LastScanRemovedItems = removedItems;
                 plugin.UpdateConfiguration(cfg);
-                _logger.LogInformation(
-                    "Advanced Metadata: {Count} item(s) no longer present were removed across {Folders} folder(s)",
-                    removedItems, scopePaths.Count);
+                if (scopePaths.Count == 0)
+                {
+                    _logger.LogWarning("Advanced Metadata: no scope folder resolved, prune skipped");
+                }
+                else
+                {
+                    _logger.LogInformation(
+                        "Advanced Metadata: {Count} item(s) no longer present were removed under '{Root}'",
+                        removedItems, scopePaths[0]);
+                }
             }
 
             progress.Report(100);
