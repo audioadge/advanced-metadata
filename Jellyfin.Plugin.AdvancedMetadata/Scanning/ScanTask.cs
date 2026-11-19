@@ -382,8 +382,8 @@ public class ScanTask : IScheduledTask
 
                     // Discs are commonly written "1/3", so take the leading number and fall
                     // back to the parsed tag. Without a disc, multi-disc albums interleave.
-                    var discNo = LeadInt(raw.TryGetValue("DISCNUMBER", out var discRaw) ? discRaw : null);
-                    var trackNo = LeadInt(raw.TryGetValue("TRACKNUMBER", out var trackRaw) ? trackRaw : null);
+                    var discNo = LeadInt(raw.TryGetValue("DISCNUMBER", out var discRaw) ? discRaw : null, 0);
+                    var trackNo = LeadInt(raw.TryGetValue("TRACKNUMBER", out var trackRaw) ? trackRaw : null, 0);
                     if (discNo > 0 || trackNo > 0) { _store.SetItemOrder(key, discNo, trackNo); }
 
                     foreach (var m in mappings)
@@ -524,7 +524,8 @@ public class ScanTask : IScheduledTask
             cfg.LastScanErrors = errors;
             cfg.LastScanFinishedUtc = DateTime.UtcNow;
             cfg.LastScanStatus = "Complete";
-            if (full && !scoped) { cfg.LastFullScanUtc = DateTime.UtcNow; }
+            // Any full pass counts, scoped or not; the Library row says what it covered.
+            if (full) { cfg.LastFullScanUtc = DateTime.UtcNow; }
             cfg.LastScanSummary = $"{done} read, {skipped} unchanged, {values} indexed, "
                 + $"{removedItems} items gone, {errors} errors.";
             plugin.UpdateConfiguration(cfg);
