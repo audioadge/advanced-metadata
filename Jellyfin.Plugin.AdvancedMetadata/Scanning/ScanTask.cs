@@ -496,20 +496,32 @@ public class ScanTask : IScheduledTask
             if (full)
             {
                 Stage("Removing items that are gone");
-                var scopePath = scoped ? (scopeItem?.Path ?? string.Empty) : string.Empty;
-
-                // A scoped run that cannot resolve its folder must not prune across everything.
-                if (!scoped || !string.IsNullOrWhiteSpace(scopePath))
+                // A library is a CollectionFolder: its Path is empty and the real locations
+                // live on its physical folders.
+                var scopePaths = new List<string>();
+                if (scoped && scopeItem is not null)
                 {
-                    removedItems = _store.PruneMissing(runTag, scopePath);
+                    scopePaths.AddRange(scopeItem.GetPhysicalFolders()
+                        .Select(f => f.Path)
+                        .Where(p => !string.IsNullOrWhiteSpace(p)));
+
+                    if (scopePaths.Count == 0 && !string.IsNullOrWhiteSpace(scopeItem.Path))
+                    {
+                        scopePaths.Add(scopeItem.Path);
+                    }
                 }
 
-                _logger.LogInformation("Advanced Metadata: prune scope '{Scope}'", scopePath);
+                // A scoped run that cannot resolve a folder must not prune across everything.
+                if (!scoped || scopePaths.Count > 0)
+                {
+                    removedItems = _store.PruneMissing(runTag, scopePaths);
+                }
+
                 cfg.LastScanRemovedItems = removedItems;
                 plugin.UpdateConfiguration(cfg);
                 _logger.LogInformation(
-                    "Advanced Metadata: {Count} item(s) no longer present were removed from the index",
-                    removedItems);
+                    "Advanced Metadata: {Count} item(s) no longer present were removed across {Folders} folder(s)",
+                    removedItems, scopePaths.Count);
             }
 
             progress.Report(100);
