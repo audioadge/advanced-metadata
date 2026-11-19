@@ -2102,7 +2102,14 @@ function deleteValue(r) {
     if ($('kvErrors')) { $('kvErrors').textContent = cfg.LastScanErrors == null ? '—' : cfg.LastScanErrors; }
     if ($('kvStarted')) { $('kvStarted').textContent = fmt(cfg.LastScanStartedUtc); }
     if ($('kvFinished')) { $('kvFinished').textContent = fmt(cfg.LastScanFinishedUtc); }
-    if ($('kvLastFull')) { $('kvLastFull').textContent = fmt(cfg.LastFullScanUtc); }
+    if ($('kvLastFull')) {
+      var lf = fmt(cfg.LastFullScanUtc);
+      if (lf !== '—' && cfg.LastScanType === 'Full Scan') {
+        lf += ' · ' + (cfg.LastScanLibrary || 'All libraries');
+      }
+
+      $('kvLastFull').textContent = lf;
+    }
   }
 
   function setScanBanner(on, text) {
@@ -2213,9 +2220,10 @@ var LIB_TYPES = {
 
     $('btnResetScanOpts').addEventListener('click', function () {
       apiPost('AdvancedMetadataData/ResetScanOptions').then(function () {
-        cfg.ScanLibraryId = '';
+       cfg.ScanLibraryId = '';
         cfg.PendingScanLibraryId = '';
         cfg.PendingScanMappingTag = '';
+        cfg.LastScanMapping = '';
         cfg.FullRescanRequested = false;
         if ($('scanLibrary')) { $('scanLibrary').value = ''; }
         if ($('scanMapping')) { $('scanMapping').value = ''; }
@@ -3013,6 +3021,7 @@ var LIB_TYPES = {
 <script>
 (function () {
   var inside = false;
+  var done = false;
 
   function onPage() {
     var p = document.getElementById('AdvancedMetadataConfigPage');
@@ -3020,9 +3029,9 @@ var LIB_TYPES = {
   }
 
   function check() {
-    if (!onPage()) { inside = false; return; }
-    if (inside) { return; }
-    inside = true;
+    if (done) { return; }
+    if (!onPage()) { return; }
+    done = true;
     ['newTag', 'newDisplay', 'newDelims', 'newHierarchy', 'newDelimMode',
      'bulkTags', 'bulkHierarchy'].forEach(function (id) {
       var el = document.getElementById(id);
@@ -3031,7 +3040,7 @@ var LIB_TYPES = {
     if (window.amShowTab) { window.amShowTab('create'); }
   }
 
-  window.addEventListener('pageshow', check);
+  window.addEventListener('pageshow', function () { done = false; inside = false; check(); });
   document.addEventListener('visibilitychange', check);
   setTimeout(check, 200);
   setInterval(check, 400);
