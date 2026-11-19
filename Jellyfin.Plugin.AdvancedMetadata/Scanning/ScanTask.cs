@@ -382,8 +382,8 @@ public class ScanTask : IScheduledTask
 
                     // Discs are commonly written "1/3", so take the leading number and fall
                     // back to the parsed tag. Without a disc, multi-disc albums interleave.
-                    var discNo = LeadInt(raw.TryGetValue("DISCNUMBER", out var discRaw) ? discRaw : null, 0);
-                    var trackNo = LeadInt(raw.TryGetValue("TRACKNUMBER", out var trackRaw) ? trackRaw : null, 0);
+                    var discNo = LeadInt(raw.TryGetValue("DISCNUMBER", out var discRaw) ? discRaw : null);
+                    var trackNo = LeadInt(raw.TryGetValue("TRACKNUMBER", out var trackRaw) ? trackRaw : null);
                     if (discNo > 0 || trackNo > 0) { _store.SetItemOrder(key, discNo, trackNo); }
 
                     foreach (var m in mappings)
