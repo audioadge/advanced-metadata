@@ -869,35 +869,32 @@ CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL);");
     /// Drops tracks a full scan did not see, with their values and edits, then any album or
     /// artist row left with nothing beneath it. Returns how many tracks went.
     /// </summary>
-    public int PruneMissing(string runTag, IReadOnlyList<string> scopePaths)
+   public int PruneMissing(string runTag, bool unscoped)
         => Write(c =>
         {
             var gone = new List<(long Id, string Jid)>();
             using (var sel = c.CreateCommand())
             {
-                var sql = "SELECT id, jellyfin_id FROM items WHERE kind='Audio' AND COALESCE(seen_run,'') <> $r";
-
-                if (scopePaths.Count > 0)
-                {
-                    var terms = new List<string>();
-                    for (var i = 0; i < scopePaths.Count; i++)
-                    {
-                        terms.Add("COALESCE(path,'') LIKE $p" + i);
-                    }
-
-                    sql += " AND (" + string.Join(" OR ", terms) + ")";
-                }
-
-                sel.CommandText = sql;
+                // A scoped run only considers rows it walked, so other libraries are left alone.
+                // Either way the test is the same: the file is gone.
+                sel.CommandText = unscoped
+                    ? "SELECT id, jellyfin_id, COALESCE(path,''), COALESCE(seen_run,'') FROM items WHERE kind='Audio';"
+                    : "SELECT id, jellyfin_id, COALESCE(path,''), COALESCE(seen_run,'') FROM items WHERE kind='Audio' AND seen_run=$r;";
                 sel.Parameters.AddWithValue("$r", runTag);
 
-                for (var i = 0; i < scopePaths.Count; i++)
-                {
-                    sel.Parameters.AddWithValue("$p" + i, scopePaths[i].TrimEnd('/') + "%");
-                }
-
                 using var r = sel.ExecuteReader();
-                while (r.Read()) { gone.Add((r.GetInt64(0), r.GetString(1))); }
+                while (r.Read())
+                {
+                    var id = r.GetInt64(0);
+                    var jid = r.GetString(1);
+                    var path = r.GetString(2);
+                    var seen = r.GetString(3);
+
+                    if (seen != runTag || path.Length == 0 || !File.Exists(path))
+                    {
+                        gone.Add((id, jid));
+                    }
+                }
             }
 
             foreach (var (id, jid) in gone)
