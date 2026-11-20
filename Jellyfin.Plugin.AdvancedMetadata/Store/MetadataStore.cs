@@ -875,10 +875,9 @@ CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL);");
             var gone = new List<(long Id, string Jid)>();
             using (var sel = c.CreateCommand())
             {
-                // A scoped run only considers rows it walked, so other libraries are left alone.
-                // Either way the test is the same: the file is gone.
-                sel.CommandText = unscoped
-                    : "SELECT id, jellyfin_id, COALESCE(path,''), COALESCE(seen_run,'') FROM items WHERE kind='Audio';";
+                // No scope filter: an item Jellyfin has already dropped is never walked, so it
+                // would never be seen. The file's absence is the only test.
+                sel.CommandText = "SELECT id, jellyfin_id, COALESCE(path,'') FROM items WHERE kind='Audio';";
                 sel.Parameters.AddWithValue("$r", runTag);
 
                 using var r = sel.ExecuteReader();
@@ -887,10 +886,7 @@ CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL);");
                     var id = r.GetInt64(0);
                     var jid = r.GetString(1);
                     var path = r.GetString(2);
-                    var seen = r.GetString(3);
 
-                    // Kept only if the file is still there. Scope cannot be used here: an item
-                    // Jellyfin has already dropped is never walked, so it is never seen.
                     if (path.Length == 0 || !File.Exists(path))
                     {
                         gone.Add((id, jid));
