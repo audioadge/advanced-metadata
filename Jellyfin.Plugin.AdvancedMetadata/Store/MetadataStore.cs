@@ -878,7 +878,7 @@ CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL);");
                 // A scoped run only considers rows it walked, so other libraries are left alone.
                 // Either way the test is the same: the file is gone.
                 sel.CommandText = unscoped
-                    ? "SELECT id, jellyfin_id, COALESCE(path,''), COALESCE(seen_run,'') FROM items WHERE kind='Audio';":
+                    : "SELECT id, jellyfin_id, COALESCE(path,''), COALESCE(seen_run,'') FROM items WHERE kind='Audio';";
                 sel.Parameters.AddWithValue("$r", runTag);
 
                 using var r = sel.ExecuteReader();
