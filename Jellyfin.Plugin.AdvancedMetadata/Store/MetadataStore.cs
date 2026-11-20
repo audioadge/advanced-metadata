@@ -879,7 +879,6 @@ CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL);");
                 // Either way the test is the same: the file is gone.
                 sel.CommandText = unscoped
                     ? "SELECT id, jellyfin_id, COALESCE(path,''), COALESCE(seen_run,'') FROM items WHERE kind='Audio';"
-                    : "SELECT id, jellyfin_id, COALESCE(path,''), COALESCE(seen_run,'') FROM items WHERE kind='Audio' AND seen_run=$r;";
                 sel.Parameters.AddWithValue("$r", runTag);
 
                 using var r = sel.ExecuteReader();
@@ -890,7 +889,9 @@ CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL);");
                     var path = r.GetString(2);
                     var seen = r.GetString(3);
 
-                    if (seen != runTag || path.Length == 0 || !File.Exists(path))
+                    // Kept only if the file is still there. Scope cannot be used here: an item
+                    // Jellyfin has already dropped is never walked, so it is never seen.
+                    if (path.Length == 0 || !File.Exists(path))
                     {
                         gone.Add((id, jid));
                     }
