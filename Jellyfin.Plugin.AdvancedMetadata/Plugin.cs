@@ -21,7 +21,6 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
         : base(applicationPaths, xmlSerializer)
     {
         Instance = this;
-        DataFolder = System.IO.Path.Combine(applicationPaths.DataPath, "AdvancedMetadata");
     }
 
     /// <summary>Handoff from the config page so a started scan cannot race the config write.</summary>
@@ -30,8 +29,6 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
     public static string PendingScanLibraryId { get; set; } = string.Empty;
 
     public static bool PendingFullRescan { get; set; }
-
-    public static string DataFolder { get; private set; } = string.Empty;
 
     public static Plugin? Instance { get; private set; }
 
