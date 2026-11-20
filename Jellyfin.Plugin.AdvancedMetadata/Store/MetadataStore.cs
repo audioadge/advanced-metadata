@@ -875,9 +875,10 @@ CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL);");
             var gone = new List<(long Id, string Jid)>();
             using (var sel = c.CreateCommand())
             {
-                // No scope filter: an item Jellyfin has already dropped is never walked, so it
-                // would never be seen. The file's absence is the only test.
-                sel.CommandText = "SELECT id, jellyfin_id, COALESCE(path,'') FROM items WHERE kind='Audio';";
+                // Only rows this run did not walk are tested, so a full scan no longer stats the
+                // whole index. A walked row's file was read seconds ago and cannot be missing.
+                sel.CommandText = "SELECT id, jellyfin_id, COALESCE(path,'') FROM items "
+                    + "WHERE kind='Audio' AND COALESCE(seen_run,'') <> $r;";
                 sel.Parameters.AddWithValue("$r", runTag);
 
                 using var r = sel.ExecuteReader();
