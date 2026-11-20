@@ -286,9 +286,14 @@ public class ScanTask : IScheduledTask
                     }
 
                     var path = item.Path;
-                    if (string.IsNullOrEmpty(path) || !File.Exists(path)) { return; }
-
                     var key = item.Id.ToString("N");
+
+                    // Marked before the existence check: a row whose file has gone still has to
+                    // be recorded as seen by this run, so the prune can tell it from another
+                    // library's rows.
+                    _store.TouchItem(key, runTag);
+
+                    if (string.IsNullOrEmpty(path) || !File.Exists(path)) { return; }
                     long mtime;
                     long size;
                     try
@@ -370,8 +375,6 @@ public class ScanTask : IScheduledTask
                         {
                             _store.SetItemArtist(key, primaryArtist.Id.ToString("N"));
                         }
-
-                        _store.TouchItem(key, runTag);
                     }
                     catch (Exception ex)
                     {
@@ -496,54 +499,11 @@ public class ScanTask : IScheduledTask
             if (full)
             {
                 Stage("Removing items that are gone");
-                // A library folder carries no path of its own, so take the deepest directory
-                // that all of its scanned items share.
-                var scopePaths = new List<string>();
-                if (scoped)
-                {
-                   // Every path, not a head sample: the list is path-ordered, so the first few
-                    // dozen items all sit in the same album and would pin the root too deep.
-                    var sample = items
-                        .Select(i => i.Path)
-                        .Where(p => !string.IsNullOrWhiteSpace(p))
-                        .ToList();
-
-                    if (sample.Count > 0)
-                    {
-                        var root = Path.GetDirectoryName(sample[0]) ?? string.Empty;
-
-                        foreach (var p in sample.Skip(1))
-                        {
-                            while (root.Length > 0 && !p.StartsWith(root, StringComparison.Ordinal))
-                            {
-                                root = Path.GetDirectoryName(root) ?? string.Empty;
-                            }
-
-                            if (root.Length == 0) { break; }
-                        }
-
-                        if (root.Length > 0) { scopePaths.Add(root); }
-                    }
-                }
-
-                // A scoped run that cannot resolve a folder must not prune across everything.
-                if (!scoped || scopePaths.Count > 0)
-                {
-                    removedItems = _store.PruneMissing(runTag, scopePaths);
-                }
-
+                removedItems = _store.PruneMissing(runTag, !scoped);
                 cfg.LastScanRemovedItems = removedItems;
                 plugin.UpdateConfiguration(cfg);
-                if (scopePaths.Count == 0)
-                {
-                    _logger.LogWarning("Advanced Metadata: no scope folder resolved, prune skipped");
-                }
-                else
-                {
-                    _logger.LogInformation(
-                        "Advanced Metadata: {Count} item(s) no longer present were removed under '{Root}'",
-                        removedItems, scopePaths[0]);
-                }
+                _logger.LogInformation(
+                    "Advanced Metadata: {Count} item(s) with a missing file were removed", removedItems);
             }
 
             progress.Report(100);
