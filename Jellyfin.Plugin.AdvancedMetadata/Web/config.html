@@ -2309,7 +2309,7 @@ var LIB_TYPES = {
      if (i.Version) { clientVersion = i.Version; }
      if (i.Version) {
         var seen = window.localStorage.getItem('amSeenVersion');
-        if (!seen || seen !== i.Version) { window.amShowTab('create'); }
+       if ((!seen || seen !== i.Version) && !window.amTabChosen) { window.amShowTab('create'); }
         window.localStorage.setItem('amSeenVersion', i.Version);
       }
       if ($('kvSchema')) { $('kvSchema').textContent = i.Schema || '—'; }
@@ -3050,7 +3050,11 @@ var LIB_TYPES = {
    b.addEventListener('click', function () { window.amTabChosen = true; }, true);
   });
 
-  window.addEventListener('pageshow', function () { done = false; setTimeout(land, 0); });
+  window.addEventListener('pageshow', function () {
+    done = false;
+    window.amTabChosen = false;
+    setTimeout(land, 0);
+  });
   [0, 100, 300, 700, 1400].forEach(function (ms) { setTimeout(land, ms); });
   setInterval(land, 500);
 })();
