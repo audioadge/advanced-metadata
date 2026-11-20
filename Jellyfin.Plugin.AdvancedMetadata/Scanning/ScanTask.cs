@@ -498,12 +498,12 @@ public class ScanTask : IScheduledTask
             // A full pass has now seen every track, so anything it did not see has gone.
             if (full)
             {
-                Stage("Removing items that are gone");
+                Stage("Removing values that no longer exist");
                 removedItems = _store.PruneMissing(runTag, !scoped);
                 cfg.LastScanRemovedItems = removedItems;
                 plugin.UpdateConfiguration(cfg);
                 _logger.LogInformation(
-                    "Advanced Metadata: {Count} item(s) with a missing file were removed", removedItems);
+                    "Advanced Metadata: {Count} item(s) with no file left were removed", removedItems);
             }
 
             progress.Report(100);
