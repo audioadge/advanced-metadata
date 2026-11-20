@@ -3033,14 +3033,10 @@ var LIB_TYPES = {
   }
 
   function land() {
-    if (done) { return; }
+    if (done || window.amTabChosen) { return; }
     if (!onPage()) { return; }
     if (!window.amShowTab) { return; }
     done = true;
-
-    // A tab is already selected, so the page has been used: do not override the choice.
-    var active = document.querySelector('.am-tab[aria-selected="true"]');
-    if (active && active.getAttribute('data-tab') !== 'create') { return; }
     ['newTag', 'newDisplay', 'newDelims', 'newHierarchy', 'newDelimMode',
      'bulkTags', 'bulkHierarchy'].forEach(function (id) {
       var el = document.getElementById(id);
@@ -3051,7 +3047,7 @@ var LIB_TYPES = {
 
   // Choosing a tab cancels the pending landing, so it can never pull you back.
   Array.prototype.forEach.call(document.querySelectorAll('.am-tab'), function (b) {
-    b.addEventListener('click', function () { done = true; }, true);
+   b.addEventListener('click', function () { window.amTabChosen = true; }, true);
   });
 
   window.addEventListener('pageshow', function () { done = false; setTimeout(land, 0); });
