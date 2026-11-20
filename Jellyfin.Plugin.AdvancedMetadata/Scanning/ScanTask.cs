@@ -184,11 +184,8 @@ public class ScanTask : IScheduledTask
             Stage("Pruning and syncing mappings");
             _store.SyncMappings(forSync);
 
-            // A scoped full rescan clears per item in the loop, so other libraries keep their values.
-            if (full && !scoped)
-            {
-                foreach (var m in mappings) { _store.ClearField(m.SourceTag); }
-            }
+            // No pre-clear: a full pass replaces every item's values in the loop, so an
+            // interrupted run leaves the previous index intact instead of an empty one.
 
             foreach (var m in mappings)
             {
