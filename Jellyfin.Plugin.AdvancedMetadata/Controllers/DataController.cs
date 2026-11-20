@@ -649,6 +649,7 @@ public class DataController : ControllerBase
                 catch (IOException)
                 {
                     if (hadDb) { try { System.IO.File.Copy(safety, db, true); } catch { /* rollback best effort */ } }
+                    _store.Reopen();
                     return Ok(new { Ok = false, Message = "The index file is locked. Stop any running task and try again." });
                 }
 
