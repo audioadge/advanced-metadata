@@ -3037,6 +3037,10 @@ var LIB_TYPES = {
     if (!onPage()) { return; }
     if (!window.amShowTab) { return; }
     done = true;
+
+    // A tab is already selected, so the page has been used: do not override the choice.
+    var active = document.querySelector('.am-tab[aria-selected="true"]');
+    if (active && active.getAttribute('data-tab') !== 'create') { return; }
     ['newTag', 'newDisplay', 'newDelims', 'newHierarchy', 'newDelimMode',
      'bulkTags', 'bulkHierarchy'].forEach(function (id) {
       var el = document.getElementById(id);
