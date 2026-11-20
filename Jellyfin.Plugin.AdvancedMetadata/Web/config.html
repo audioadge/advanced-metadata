@@ -2018,7 +2018,10 @@ function deleteValue(r) {
     var running = state === 'Running' || state === 'Cancelling';
     if (wasRunning && !running) {
       var ended = cfg.LastScanStatus || '';
-      if (ended === 'Cancelled') {
+      if (ended && Date.now() - scanClickAt < 4000) {
+        setStatus('scanStatus', 'info', 'Starting…');
+      } else if (ended === 'Cancelled') 
+      {
         setStatus('scanStatus', 'warn', 'Scan stopped. The values indexed so far are kept.');
       } else if (ended === 'Complete') {
         var idx = cfg.LastScanValues || 0;
@@ -2121,6 +2124,7 @@ function deleteValue(r) {
   }
 
   var wasRunning = false;
+  var scanClickAt = 0;
 
   function refreshTask() {
     apiGet('ScheduledTasks').then(function (tasks) {
@@ -2234,6 +2238,7 @@ var LIB_TYPES = {
 
     $('btnScan').addEventListener('click', function () {
       if (!task) { return; }
+      scanClickAt = Date.now();
       if ($('chkFull').checked && !window.confirm(
           'WARNING: Running a full scan will take significantly longer and may impact the performance of your environment. Do you want to continue?')) { return; }
        cfg.FullRescanRequested = $('chkFull').checked;
