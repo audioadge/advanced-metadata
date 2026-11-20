@@ -3020,7 +3020,6 @@ var LIB_TYPES = {
 <!-- ===== land on Create when the page is entered ===== -->
 <script>
 (function () {
-  var inside = false;
   var done = false;
 
   function onPage() {
@@ -3028,7 +3027,7 @@ var LIB_TYPES = {
     return !!(p && p.getClientRects().length > 0);
   }
 
-  function check() {
+  function land() {
     if (done) { return; }
     if (!onPage()) { return; }
     if (!window.amShowTab) { return; }
@@ -3038,13 +3037,17 @@ var LIB_TYPES = {
       var el = document.getElementById(id);
       if (el) { el.value = ''; }
     });
-    if (window.amShowTab) { window.amShowTab('create'); }
+    window.amShowTab('create');
   }
 
-  window.addEventListener('pageshow', function () { done = false; inside = false; check(); });
-  document.addEventListener('visibilitychange', check);
-  setTimeout(check, 200);
-  setInterval(check, 400);
+  // Choosing a tab cancels the pending landing, so it can never pull you back.
+  Array.prototype.forEach.call(document.querySelectorAll('.am-tab'), function (b) {
+    b.addEventListener('click', function () { done = true; }, true);
+  });
+
+  window.addEventListener('pageshow', function () { done = false; setTimeout(land, 0); });
+  [0, 100, 300, 700, 1400].forEach(function (ms) { setTimeout(land, ms); });
+  setInterval(land, 500);
 })();
 </script>
 
