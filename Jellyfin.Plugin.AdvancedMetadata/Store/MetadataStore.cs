@@ -904,13 +904,9 @@ CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL);");
                     v.ExecuteNonQuery();
                 }
 
-                using (var o = c.CreateCommand())
-                {
-                    o.CommandText = "DELETE FROM overrides WHERE jellyfin_id=$j;";
-                    o.Parameters.AddWithValue("$j", jid);
-                    o.ExecuteNonQuery();
-                }
-
+                // Overrides are keyed by the Jellyfin id and are left in place: if the item comes
+                // back (a share remounts, a file is moved back) its edits apply again. The deleted
+                // view joins on items, so orphans stay invisible.
                 using var d = c.CreateCommand();
                 d.CommandText = "DELETE FROM items WHERE id=$i;";
                 d.Parameters.AddWithValue("$i", id);
@@ -1643,6 +1639,10 @@ COALESCE(i.parent_id,'') AS parent, COALESCE(i.disc,0) AS disc, COALESCE(i.track
                 }
             }
 
+            const string SelectCols = "id, kind, item, artist, album, detail, field, value, "
+                + "isoverride, isdeleted, override_old, added, parent, disc, track, "
+                + "a_slot, b_slot, c_slot, a_name, b_name, c_name, chain";
+
             var rows = new List<BrowseRow>();
             var groups = 0;
             string? previousChain = null;
@@ -1654,7 +1654,7 @@ COALESCE(i.parent_id,'') AS parent, COALESCE(i.disc,0) AS disc, COALESCE(i.track
                     + "disc, track, c_name " + dir + ", chain " + dir + ", item, field, value ";
 
                 cmd.CommandText = prefix
-                    + "\nSELECT * FROM shaped\n"
+                    + "\nSELECT " + SelectCols + " FROM shaped\n"
                     + dirOrder
                     + "\nLIMIT $lim OFFSET $off;";
 
@@ -1663,12 +1663,17 @@ COALESCE(i.parent_id,'') AS parent, COALESCE(i.disc,0) AS disc, COALESCE(i.track
                 cmd.Parameters.AddWithValue("$off", Math.Max(0, rowOffset));
 
                 using var r = cmd.ExecuteReader();
+                var oA = r.GetOrdinal("a_slot");
+                var oB = r.GetOrdinal("b_slot");
+                var oC = r.GetOrdinal("c_slot");
+                var oChain = r.GetOrdinal("chain");
+
                 while (r.Read())
                 {
-                    var aKey = r.GetString(18);
-                    var bKey = r.GetString(19);
-                    var cKey = r.GetString(20);
-                    var chainValue = r.GetString(24);
+                    var aKey = r.GetString(oA);
+                    var bKey = r.GetString(oB);
+                    var cKey = r.GetString(oC);
+                    var chainValue = r.GetString(oChain);
                     if (chainValue != previousChain) { groups++; previousChain = chainValue; }
 
                     rows.Add(new BrowseRow(
